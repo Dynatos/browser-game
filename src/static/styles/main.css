@@ -1,0 +1,327 @@
+@media only screen and (min-width: 960px) {
+    .game-window-root {
+        width: 960px;
+    }
+}
+
+@media only screen and (min-height: 600px) {
+    .game-window-root {
+        height: 600px;
+    }
+}
+
+body {
+    margin: 0 auto;
+    background-color: #444444;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+* {
+    cursor: default;
+    box-sizing: border-box;
+}
+
+.game-window-root {
+    max-width: 960px;
+    max-height: 600px;
+    min-width: 320px;
+    min-height: 320px;
+    height: 100%;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    border: 1px solid #111111;
+    background-color: #CCCCCC;
+}
+
+.login-page-highest-parent, .signup-page-highest-parent {
+    margin: 10% auto auto auto;
+}
+
+.signup-form {
+    display: grid;
+    width: 320px;
+}
+
+.anchor-always-blue {
+    text-decoration: none;
+    color:blue;
+}
+
+.navigation-shell-highest-parent {
+    height: 100%;
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+}
+
+.character-data-display-top-bar {
+    display: flex;
+    flex-wrap: wrap;
+    width: 100%;
+    height: 54px;
+    background-color: #999999;
+    border-bottom: 1px solid #333333;
+}
+
+.character-data-parent {
+    width: 120px;
+    height: 54px;
+    margin-left: 2px;
+}
+
+.character-data-username {
+    font-size: 20px;
+    color: #111111;
+}
+
+.character-data-level {
+    font-size: 14px;
+    color: #111111;
+}
+
+.character-data-gold {
+    display: flex;
+    flex-wrap: wrap;
+}
+
+.character-data-gold-image {
+    height: 14px;
+    width: auto;
+    margin: 0 2px 0 0;
+}
+
+.character-data-gold-text {
+    font-size: 14px;
+    color: black;
+}
+
+.logout-button-anchor {
+    height: 48px;
+    width: auto;
+    align-self: flex-end;
+    margin: auto 2px auto auto;
+    text-decoration: none !important;
+    color: black;
+}
+
+.logout-button-image {
+    height: 30px;
+    width: auto;
+    display: flex;
+    margin: auto;
+}
+
+.left-navbar-highest-parent {
+    height: calc(100% - 54px);
+    width: 145px;
+    background-color: #999999;
+    border-right: 1px solid #333333;
+}
+
+.left-navbar-element {
+    height: 72px;
+    width: auto;
+    background-color: #666666;
+    border-bottom: 1px solid #333333;
+    border-top: 1px solid #333333;
+    margin-bottom: 8px;
+}
+
+.left-navbar-element:first-child {
+    border-top: none;
+}
+
+.left-navbar-element:last-child {
+    margin: 0;
+}
+
+.left-navbar-element:hover {
+    transition: 0.15s;
+    background-color: #484848;
+}
+
+.left-navbar-anchor-align {
+    max-width: 100%;
+    height: auto;
+    margin: auto;
+}
+
+.left-navbar-anchor {
+    max-width: 100%;
+    height: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    align-self: center;
+    text-decoration: none;
+    color: black;
+    font-size: 36px;
+}
+
+.display-none {
+    display: none;
+}
+
+.display-inline-block {
+    display: inline-block;
+}
+
+.navigation-shell-internal-component {
+    height: calc(100% - 54px);
+    width: calc(100% - 145px);
+    padding: 5px 5px 0;
+}
+
+/*.inventory-highest-parent {*/
+    /*min-width: 300px;*/
+/*}*/
+
+.inventory-item-container div {
+    margin-top: 1px;
+}
+
+.inventory-item-legend {
+    width: 100%;
+    height: 18px;
+    border: 1px solid #222;
+    font-size: 15px;
+    display: flex;
+}
+
+.inventory-item-legend p {
+    margin: 0 auto;
+    border-right: 1px solid #222;
+}
+
+.inventory-item-legend p:last-child {
+    border: none;
+}
+
+.inventory-item-legend-item-name {
+    width: 40%;
+    overflow: hidden;
+}
+
+.inventory-item-legend-hand-style {
+    width: 10%;
+    text-align: center;
+    overflow: hidden;
+}
+
+.inventory-item-legend-damage {
+    width: 18%;
+    color: darkred;
+    text-align: center;
+    overflow: hidden;
+}
+
+.inventory-item-legend-crit {
+    width: 11%;
+    color: darkblue;
+    text-align: center;
+    overflow: hidden;
+}
+
+.inventory-item-legend-req {
+    width: 13%;
+    color: darkgreen;
+    text-align: center;
+    overflow: hidden;
+}
+
+.inventory-item-legend-equip {
+    width: 8%;
+    text-align: center;
+    overflow: hidden;
+}
+
+.inventory-item-parent p {
+    margin: 0 auto;
+    border-right: 1px solid #222;
+}
+
+.inventory-item-parent p:last-child {
+    border-right: none;
+}
+
+.inventory-item-parent {
+    width: 100%;
+    border: 1px solid #222;
+    display: flex;
+}
+
+.inventory-item--item-name {
+    width: 40%;
+}
+
+.inventory-item--hand-style {
+    width: 10%;
+    text-align: center;
+}
+
+.inventory-item--damage {
+    width: 18%;
+    text-align: center;
+}
+
+.inventory-item--crit {
+    width: 11%;
+    text-align: center;
+}
+
+.inventory-item--req {
+    width: 13%;
+    text-align: center;
+}
+
+.inventory-item--equip {
+    width: 8%;
+    padding: 0;
+    overflow: hidden;
+}
+
+.battle-highest-parent {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+
+.battle-player-image {
+    width: 128px;
+    height: 256px;
+    float: left;
+}
+
+.battle-enemy-image {
+    width: 128px;
+    height: 256px;
+    float: right;
+}
+
+#app {
+    height: calc(100% - 54px);
+    width: calc(100% - 145px);
+}
+
+.typetext {
+    width: 32px;
+    height: 32px;
+    border: 1px solid black;
+    margin: auto;
+}
+
+.typetextbig {
+    width: 128px;
+    height: 128px;
+    border: 1px solid black;
+    margin: auto;
+}
+
+.display {
+    height: 100%;
+    width: 100%;
+    font-size: 72px;
+    margin: auto;
+}
