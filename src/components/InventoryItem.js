@@ -1,5 +1,8 @@
 import React, { Component } from 'react';
 
+// Redundant component, inventory item generation has been built into the Inventory component. Leaving for possible
+// future usage
+
 export default class InventoryItem extends Component {
   
   render() {

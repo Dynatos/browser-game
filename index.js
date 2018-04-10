@@ -25,15 +25,15 @@ const chokidar = (function() {
 }());
 
 // imported components and data
-import { experience } from './src/constants/experienceObject';
+import { experience } from './src/constants/experienceObject'; // Used to calculate level
 import LoginPage from './src/components/LoginPage';
 import Battle from './src/components/Battle';
 import NavigationShell from './src/components/NavigationShell';
 import SignupPage from './src/components/SignupPage';
 
 // initialize app and database
-const app = express();
-const db = mysql.createConnection({
+const app = express(); // initialize app
+const db = mysql.createConnection({ // initialize db login info (required for future connect call) and typecast
   host: 'localhost',
   user: 'root',
   password: 'thisisplaintextlmao',
@@ -51,7 +51,7 @@ const db = mysql.createConnection({
     return( useDefaultTypeCasting() );
   } // transforms buffers (bits) to boolean
 });
-db.connect(function databaseConnectErrorHandler(err) {
+db.connect(function databaseConnectErrorHandler(err) { // finalizes connection to db, throws an error if there is one
   if (err) {
     console.log(`Error connecting to database, error message: ${err}`);
     throw err;
@@ -62,7 +62,7 @@ db.connect(function databaseConnectErrorHandler(err) {
 class DatabaseClient {
   constructor(db) {
     this.db = db;
-  } //
+  }
   
   getCharacterByUsername(username, callback) {
     this.db.query(
@@ -106,7 +106,7 @@ class DatabaseClient {
           if (err) res.send(500);
           const characterData = results[0];
           const characterLevel = getLevel(characterData.experience);
-          const characterHealth = calculateHealth(characterLevel);
+          const characterHealth = getHealth(characterLevel);
           this.getRandomEnemyByZone(zone, function(enemies, randNum, randEnemy, zoneID) {
             db.query(
               `SELECT * FROM enemies WHERE id=?`,
@@ -128,7 +128,8 @@ class DatabaseClient {
   
   insertIntoBattlesInProgress(userID, enemy, zoneID, equippedWeaponID, characterHealth, enemyHealth, callback) {
     this.db.query(
-      `INSERT INTO battles_in_progress (character_id, enemy_id, zone_id, player_weapon_id, player_health, enemy_health, completed) VALUES (?, ?, ?, ?, ?, ?, default)`,
+      `INSERT INTO battles_in_progress (character_id, enemy_id, zone_id, player_weapon_id, player_health, enemy_health,
+      completed) VALUES (?, ?, ?, ?, ?, ?, default)`,
       [userID, enemy, zoneID, equippedWeaponID, characterHealth, enemyHealth],
       callback
     )
@@ -155,12 +156,15 @@ class DatabaseClient {
   }
 }
 
-const dbQueries = new DatabaseClient(db); //instantiate db
+const dbQueries = new DatabaseClient(db); // instantiate dbQueries with db
 
+// makes templates opt-in, also allows for easy script insertion
 function renderWithTemplate (res, componentToRender, title = 'JLand', templateToRender = 'template', scriptSource = '') {
   return res.render(templateToRender, {reactData: ReactDOM.renderToStaticMarkup(componentToRender), title: title,
     scriptSource: scriptSource})
-} //function to make templates opt-in, also allows for easy script insertion
+}
+
+// calculates player level from experience value, necessary because storing both exp and level could cause inconsistency
 function getLevel(exp) {
   let returnNum;
   let exper = exp;
@@ -169,11 +173,16 @@ function getLevel(exp) {
     exper -= experience[i];
   }
   return returnNum;
-} //function to calculate player level from experience number, necessary because storing exp and level could cause inconsistency
-function calculateHealth (playerLevel) {
+}
+
+// calculates health value based on user's level
+function getHealth(playerLevel) {
   const healthBonusFromLevel = playerLevel * 15;
   return 85 + healthBonusFromLevel;
 }
+
+// render component inside 'character data top bar' and 'navigation left bar'
+// TODO: remove commented console statements when no longer necessary
 function renderWithNavigationShell (res, username, componentToRender, pageTitle, templateToRender = 'template',
                                    scriptSource = '', optProps) {
   db.query(
@@ -205,7 +214,9 @@ function renderWithNavigationShell (res, username, componentToRender, pageTitle,
           return renderWithTemplate(res, componentWithData, pageTitle, templateToRender, scriptSource);
         });
     });
-} //function to render component inside character data top bar and navigation left bar
+}
+
+// checks for currently in progress battle via user's ID, creates one if there isn't one, and renders the page
 function renderZoneBattle(res, zone, pageTitle, username) {
   dbQueries.getCharacterByUsername(username, function onGetCharacterForRenderZoneBattle(err, results) {
     const userData = results[0];
@@ -220,24 +231,30 @@ function renderZoneBattle(res, zone, pageTitle, username) {
         }
       })
   });
-} //function that checks for currently in progress battle, creates one if there isn't one, and renders the page
+}
 
-app.set('view engine', 'pug'); //sets template engine to pug
-app.use(bodyparser.urlencoded()); //allows url encoding to be understood
-app.use(cookieparser('urgheyyoubighomolol')); //secret for cookies
-app.use('/static', express.static('src/static')); //sets static path
+
+app.set('view engine', 'pug'); // sets template engine to pug
+app.use(bodyparser.urlencoded()); // allows url encoding to be understood
+app.use(cookieparser('urgheyyoubighomolol')); // secret for cookies
+app.use('/static', express.static('src/static')); // sets static path
+
+// sets express to use cookie sessions, uses a secret, and sets max age
 app.use(cookieSession({
   name: 'user-session',
   keys: ['urgheyyoubighomolol'],
   maxAge: .025 * 10 * 60 * 1000 //15 seconds
-})); //sets express to use cookie sessions, uses a secret, and sets max age
+}));
 
 
+// when / is requested: renders login page
 app.get('/', function(req, res) {
   const loginPage = <LoginPage />;
   renderWithTemplate(res, loginPage);
 });
 
+// checks login info against db login info, temporary method for proof of concept, obviously pw shouldn't be plaintext!
+// TODO: implement hashing of passwords and update this logic
 app.post('/login', function(req, res) {
   const failedLoginPage = <LoginPage failedLogin={{display:'default'}} />;
   const usernameFromLogin = req.body.username;
@@ -260,10 +277,14 @@ app.post('/login', function(req, res) {
   });
 });
 
+// when /signup is requested: renders signup page
 app.get('/signup', function(req, res) {
   renderWithTemplate(res, <SignupPage />, 'Sign up for JLand', 'template', "/static/scripts/signup.js");
 });
 
+// checks username against current userbase, compares passwords
+// TODO: make username check happen before post
+// TODO: store password via hash instead of as plaintext
 app.post('/signup/post', function(req, res) {
   const attemptedUsername = req.body.username;
   const password = req.body.password;
@@ -284,11 +305,14 @@ app.post('/signup/post', function(req, res) {
   )
 });
 
+// when /map is requested: renders map page
 app.get('/map', function(req, res) {
   const username = req.signedCookies.username;
   renderWithNavigationShell(res, username, 'map', `Onward into battle, ${username}`);
 });
 
+// when /inventory is requested: queries database for all inventory items with user's ID, renders inventory component
+// TODO: fix logic to render multiples of same item if multiple are present in db results
 app.get('/inventory', function(req, res) {
   const username = req.signedCookies.username;
   db.query(
@@ -305,7 +329,7 @@ app.get('/inventory', function(req, res) {
           const itemIDs = [];
           if (results) {
             results.forEach(function inventoryItemForEachCallback(e) {
-              if (itemIDs.indexOf(e.item_id) !== -1) {
+              if (itemIDs.indexOf(e.item_id) !== -1) { // check if array already contains current
                 return;
               }
               itemIDs.push(e.item_id);
@@ -322,32 +346,42 @@ app.get('/inventory', function(req, res) {
     });
 });
 
+// when /zone/enchanted_forest is requested: renders zone battle page
 app.get('/zone/enchanted_forest', function(req, res) {
   const username = req.signedCookies.username;
   const zone = 'enchanted forest';
   renderZoneBattle(res, zone, `Kill or be killed, ${username}`, username);
 });
 
+// when /shop is requested: redirects to /inventory
+// TODO: add shop page
 app.get('/shop', function(req, res) {
   const username = req.signedCookies.username;
   res.redirect(302, '/inventory');
 });
 
+// when /logout is requested: overwrites username cookie to prevent malicious requests, deletes current session,
+// redirects to homepage
 app.get('/logout', function(req, res) {
   res.cookie('username', null);
   delete res.session;
   res.redirect(302, '/');
 });
 
+//TODO: remove, was added because architecture was already set up and I wanted to test this out
 app.get('/text_thing', function(req, res) {
   const username = req.signedCookies.username;
   renderWithNavigationShell(res, username, 'text_thing', 'Text Typing!', 'template', '/static/scripts/textThing.js');
 });
 
+// when any page with no response handler is requested: renders 404 text on page
 app.get('/*', function(req, res) {
   res.send('404, page not found');
 });
 
+console.log(process.env); //TODO: probably remove
+
+// sets app to listen for requests on port 8001
 app.listen(8001, function appDotListenErrorHandler(err) {
   if (err) res.send(500);
   console.log('Listening at http://localhost:8001/');
