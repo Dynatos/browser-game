@@ -1,0 +1,1 @@
+This is a game I am working on that utilizes a MySQL database to store all game data and state. You can find a set of database build commands in the gameBuildingFile folder, use buildFileWithoutTemplate to build the database.
