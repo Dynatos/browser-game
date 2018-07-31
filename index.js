@@ -311,41 +311,6 @@ app.get('/map', function(req, res) {
   renderWithNavigationShell(res, username, 'map', `Onward into battle, ${username}`);
 });
 
-// when /inventory is requested: queries database for all inventory items with user's ID, renders inventory component
-// TODO: fix logic to render multiples of same item if multiple are present in db results
-// app.get('/inventory', function(req, res) {
-//   const username = req.signedCookies.username;
-//   db.query(
-//     `SELECT * FROM characters WHERE username=?`,
-//     [username],
-//     function(err, results) {
-//       if (err) res.send(500);
-//       const userData = results[0];
-//       db.query(
-//         `SELECT * FROM inventory WHERE character_id=?`,
-//         [userData.id],
-//         function(err, results) {
-//           if (err) res.send(500);
-//           const itemIDs = [];
-//           if (results) {
-//             results.forEach(function inventoryItemForEachCallback(e) {
-//               if (itemIDs.indexOf(e.item_id) !== -1) { // check if array already contains current
-//                 return;
-//               }
-//               itemIDs.push(e.item_id);
-//             });
-//           }
-//           db.query(
-//             `SELECT * FROM items WHERE id IN (?)`,
-//             [itemIDs],
-//             function(err, results) {
-//               if (err) res.send(500);
-//               renderWithNavigationShell(res, username, 'inventory', `${username}'s nice things`, 'template', '', results);
-//             });
-//         });
-//     });
-// });
-
 app.get('/inventory', function(req, res) {
   const username = req.signedCookies.username;
   db.query(
