@@ -313,6 +313,39 @@ app.get('/map', function(req, res) {
 
 // when /inventory is requested: queries database for all inventory items with user's ID, renders inventory component
 // TODO: fix logic to render multiples of same item if multiple are present in db results
+// app.get('/inventory', function(req, res) {
+//   const username = req.signedCookies.username;
+//   db.query(
+//     `SELECT * FROM characters WHERE username=?`,
+//     [username],
+//     function(err, results) {
+//       if (err) res.send(500);
+//       const userData = results[0];
+//       db.query(
+//         `SELECT * FROM inventory WHERE character_id=?`,
+//         [userData.id],
+//         function(err, results) {
+//           if (err) res.send(500);
+//           const itemIDs = [];
+//           if (results) {
+//             results.forEach(function inventoryItemForEachCallback(e) {
+//               if (itemIDs.indexOf(e.item_id) !== -1) { // check if array already contains current
+//                 return;
+//               }
+//               itemIDs.push(e.item_id);
+//             });
+//           }
+//           db.query(
+//             `SELECT * FROM items WHERE id IN (?)`,
+//             [itemIDs],
+//             function(err, results) {
+//               if (err) res.send(500);
+//               renderWithNavigationShell(res, username, 'inventory', `${username}'s nice things`, 'template', '', results);
+//             });
+//         });
+//     });
+// });
+
 app.get('/inventory', function(req, res) {
   const username = req.signedCookies.username;
   db.query(
@@ -329,18 +362,17 @@ app.get('/inventory', function(req, res) {
           const itemIDs = [];
           if (results) {
             results.forEach(function inventoryItemForEachCallback(e) {
-              if (itemIDs.indexOf(e.item_id) !== -1) { // check if array already contains current
-                return;
-              }
               itemIDs.push(e.item_id);
             });
           }
+          //console.log('results from query for inventory items: ', itemIDs); TODO: remove
           db.query(
             `SELECT * FROM items WHERE id IN (?)`,
             [itemIDs],
             function(err, results) {
               if (err) res.send(500);
-              renderWithNavigationShell(res, username, 'inventory', `${username}'s nice things`, 'template', '', results);
+              renderWithNavigationShell(res, username, 'inventory', `${username}'s nice things`, 'template', '',
+                {results: results, itemIDs: itemIDs});
             });
         });
     });
@@ -372,6 +404,18 @@ app.get('/logout', function(req, res) {
 app.get('/text_thing', function(req, res) {
   const username = req.signedCookies.username;
   renderWithNavigationShell(res, username, 'text_thing', 'Text Typing!', 'template', '/static/scripts/textThing.js');
+});
+
+app.post('/battle_attack_post' , function (req, res) {
+  const username = req.signedCookies.username;
+  db.query(
+    `SELECT * FROM characters WHERE username=?`,
+    [attemptedUsername],
+    function(err, results) {
+      if (err) throw err;
+      
+    }
+  )
 });
 
 // when any page with no response handler is requested: renders 404 text on page

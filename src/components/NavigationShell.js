@@ -17,7 +17,7 @@ export default class NavigationShell extends Component {
           // case 'map':
           //   return <Map />;
           case 'inventory':
-            return <Inventory inventoryItems={optProps} />;
+            return <Inventory inventoryItemDataObject={optProps} />;
           // case 'text_thing':
           //   return <Text />;
           // case 'shop':
