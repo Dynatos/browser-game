@@ -4,15 +4,16 @@ export default class Battle extends Component {
   
   render() {
     
-    const { bg } = this.props;
+    const { bg, originalUrl } = this.props;
     
     return (
       <div className="battle-highest-parent" style={{backgroundImage: `url(${bg})`}}>
         <img className="battle-player-image" src="/static/images/zones/enchanted_forest/player.png" />
         <img className="battle-enemy-image" src="/static/images/zones/enchanted_forest/enemy.png" />
-        <button className="battle-attack-button">
-          Attack
-        </button>
+        <form action="/battle_attack_post" method="post">
+          <input type="hidden" name="zoneArea" value={originalUrl} />
+          <input type="submit" id="battle-submit-attack" className="battle-attack-button" name="Attack" />
+        </form>
       </div>
     )
   }

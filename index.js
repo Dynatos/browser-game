@@ -190,15 +190,18 @@ function renderWithNavigationShell (res, username, componentToRender, pageTitle,
     [username],
     function(err, results) {
       if (err) res.send(500);
+      
       const characterQueryResults = results[0];
-      // console.log('results from querying characters table for ', username, 'are ', characterQueryResults);
+      // console.log('results from querying characters table for ', username, 'are ', characterQueryResults); //TODO remove
+      
       db.query(
         `SELECT * FROM character_data WHERE id = ?`,
         [characterQueryResults.id],
         function(err, results) {
           if (err) res.send(500);
+          
           const characterDataQueryResults = results[0];
-          // console.log('results of querying character_data table are', characterDataQueryResults);
+          // console.log('results of querying character_data table are', characterDataQueryResults); //TODO remove
           const dataObject = {
             character: characterQueryResults,
             character_data: characterDataQueryResults
@@ -208,23 +211,24 @@ function renderWithNavigationShell (res, username, componentToRender, pageTitle,
             experience: dataObject.character_data.experience,
             gold: dataObject.character_data.gold
           };
-          const componentWithData = optProps ?
+          const componentWithData = optProps ? // if optProps is truthy: call NavigationShell with optProps
             <NavigationShell userData={userDataObject} componentToRender={componentToRender} optProps={optProps} /> :
             <NavigationShell userData={userDataObject} componentToRender={componentToRender} />;
+            
           return renderWithTemplate(res, componentWithData, pageTitle, templateToRender, scriptSource);
         });
     });
 }
 
 // checks for currently in progress battle via user's ID, creates one if there isn't one, and renders the page
-function renderZoneBattle(res, zone, pageTitle, username) {
+function renderZoneBattle(res, zone, pageTitle, username, originalUrl) {
   dbQueries.getCharacterByUsername(username, function onGetCharacterForRenderZoneBattle(err, results) {
     const userData = results[0];
     dbQueries.checkBattlesInProgress(userData.id, function(err, results) {
         if (err) res.send(500);
         if (results[0] && !results[0].completed) {
-          const battle = <Battle bg={'/static/images/zones/enchanted_forest/background.png'}/>;
-          return renderWithTemplate(res, battle);
+          const battle = <Battle bg={'/static/images/zones/enchanted_forest/background.png'} originalUrl={originalUrl} />;
+          return renderWithTemplate(res, battle, pageTitle);
         }
         if (!results[0]) {
           dbQueries.renderNewBattle(res, zone, userData.id);
@@ -347,7 +351,10 @@ app.get('/inventory', function(req, res) {
 app.get('/zone/enchanted_forest', function(req, res) {
   const username = req.signedCookies.username;
   const zone = 'enchanted forest';
-  renderZoneBattle(res, zone, `Kill or be killed, ${username}`, username);
+  const urlEncodedZoneName = (function urlEncodedZoneName(zoneName) {
+    return  zoneName.replace(' ', '_');
+  }(zone)); // IIFE that allows query parameter to be added to request URL; used to redirect the user back to the right zone
+  renderZoneBattle(res, zone, `Kill or be killed, ${username}`, username, urlEncodedZoneName);
 });
 
 // when /shop is requested: redirects to /inventory
@@ -375,10 +382,19 @@ app.post('/battle_attack_post' , function (req, res) {
   const username = req.signedCookies.username;
   db.query(
     `SELECT * FROM characters WHERE username=?`,
-    [attemptedUsername],
+    [username],
     function(err, results) {
       if (err) throw err;
-      
+      console.log('id: ', results[0].id);
+      db.query(
+        `SELECT * FROM battles_in_progress JOIN zones ON (battles_in_progress.zone_id = zones.id) WHERE character_id=?;`,
+        [results[0].id],
+        function(err, results) {
+          if (err) throw err;
+          console.log('queried zone: ', results[0].name);
+          res.redirect('/zone/' + results[0].name.replace(' ', '_'));
+        }
+      );
     }
   )
 });
