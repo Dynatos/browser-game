@@ -288,6 +288,12 @@ body {
     overflow: hidden;
 }
 
+.battle-alignment {
+    height: 50%;
+    width: 100%;
+    margin-top: 16%;
+}
+
 .battle-player-image {
     width: 128px;
     height: 256px;

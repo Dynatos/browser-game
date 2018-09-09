@@ -6,6 +6,8 @@ const bodyparser = require('body-parser');
 const cookieparser = require('cookie-parser');
 const mysql = require('mysql');
 const cookieSession = require('cookie-session');
+const async = require('async');
+const winston = require('winston');
 const chokidar = (function() {
   // had issues with process.env.NODE_ENV, removed for now
   // const production = process.env.NODE_ENV === 'production';
@@ -15,7 +17,7 @@ const chokidar = (function() {
     const watcher = chokidar.watch('./src', null);
     watcher.on('ready', function() {
       watcher.on('all', function() {
-        console.log("Clearing /app/ module cache from server");
+        console.log('Clearing /app/ module cache from server');
         Object.keys(require.cache).forEach(function(id) {
           if (/[\/\\]app[\/\\]/.test(id)) delete require.cache[id]
         })
@@ -41,10 +43,10 @@ const db = mysql.createConnection({ // initialize db login info (required for fu
   typeCast: function castField(field, useDefaultTypeCasting) {
     // We only want to cast bit fields that have a single-bit in them. If the field
     // has more than one bit, then we cannot assume it is supposed to be a Boolean.
-    if ((field.type === "BIT" ) && (field.length === 1)) {
+    if ((field.type === 'BIT' ) && (field.length === 1)) {
       const bytes = field.buffer();
       // A Buffer in Node represents a collection of 8-bit unsigned integers.
-      // Therefore, our single "bit field" comes back as the bits '0000 0001',
+      // Therefore, our single 'bit field' comes back as the bits '0000 0001',
       // which is equivalent to the number 1.
       return( bytes[ 0 ] === 1 );
     }
@@ -53,15 +55,17 @@ const db = mysql.createConnection({ // initialize db login info (required for fu
 });
 db.connect(function databaseConnectErrorHandler(err) { // finalizes connection to db, throws an error if there is one
   if (err) {
-    console.log(`Error connecting to database, error message: ${err}`);
+    logger.error('Error connecting to database', err);
     throw err;
   }
 });
 
 // database class for initiating db functions and attaching them to any number of dbs
+// to be called with instances of db and logger
 class DatabaseClient {
-  constructor(db) {
-    this.db = db;
+  constructor(db, logger) {
+    this.db = db; // database dependency injection
+    this.logger = logger; //
   }
   
   getCharacterByUsername(username, callback) {
@@ -96,14 +100,32 @@ class DatabaseClient {
     )
   }
   
+  loginPlayer(usernameFromLogin, passwordFromLogin, cb) {
+    db.query(
+      `SELECT * FROM characters WHERE username = ? AND password = ?`,
+      [usernameFromLogin, passwordFromLogin],
+      cb
+    );
+  }
+  
   // TODO: extract data fetching from component rendering, add handling for errors
   renderNewBattle(res, zone, userID) {
+    const logger = this.logger;
     this.getEquippedWeaponByCharacterID(userID, function(err, results) {
-      if (err) res.send(500);
+      if (err) {
+        logger.error('Error fetching equipment weapon by character ID', {
+          err,
+          results
+        });
+        return res.send(500);
+      }
       const equippedWeaponData = results[0];
       this.getCharacterDataByID(userID,
         function(err, results) {
-          if (err) res.send(500);
+          if (err) {
+            logger.error('Error getting character data by ID', err);
+            return;
+          }
           const characterData = results[0];
           const characterLevel = getLevel(characterData.experience);
           const characterHealth = getHealth(characterLevel);
@@ -136,11 +158,18 @@ class DatabaseClient {
   }
   
   getRandomEnemyByZone(zone, callback) {
+    logger.info('getting random enemy by zone', {zone});
     this.db.query(
       `SELECT * FROM zones WHERE name=?`,
       [zone],
       function(err, results) {
-        if (err) console.log(`Error getting zone from database, error message: ${err}`);
+        if (err) {
+          logger.error('Error getting random enemy by zone', {
+            err,
+            zone
+          });
+          return;
+        }
         const zoneData = results[0];
         db.query(
           `SELECT * FROM zone_enemies WHERE zone_id=?`,
@@ -156,10 +185,50 @@ class DatabaseClient {
   }
 }
 
-const dbQueries = new DatabaseClient(db); // instantiate dbQueries with db
+// initialize winston as logger for future injection
+const logger = winston.createLogger({
+  level: 'info',
+  format: winston.format.json(),
+  transport: [
+    new winston.transports.File({ filename: 'error.log', level: 'error' }),
+    new winston.transports.File({ filename: 'combined.log' })
+  ]
+});
 
-// makes templates opt-in, also allows for easy script insertion
-function renderWithTemplate (res, componentToRender, title = 'JLand', templateToRender = 'template', scriptSource = '') {
+// TODO: make this have environments
+if (true /*process.env.NODE_ENV !== 'production'*/) {
+  logger.add(new winston.transports.Console({
+    format: winston.format.simple()
+  }));
+}
+
+
+const dbQueries = new DatabaseClient(db /*, logger TODO: use or delete*/); // instantiate dbQueries with db
+
+
+app.set('view engine', 'pug'); // sets template engine to pug
+app.use(bodyparser.urlencoded()); // allows url encoding to be understood
+app.use(cookieparser('urgheyyoubighomolol')); // secret for cookies
+app.use('/static', express.static('src/static')); // sets static path
+
+// sets express to use cookie sessions, uses a secret, and sets max age
+app.use(cookieSession({
+  name: 'user-session',
+  keys: ['urgheyyoubighomolol'],
+  maxAge: .025 * 10 * 60 * 1000 //15 seconds
+}));
+
+
+//
+//
+// End initialization
+// Begin declaration of pure logical functions
+//
+//
+
+
+// used to render pages with templates, makes templates opt-in. Also allows for easy script insertion
+function renderWithTemplate (res, componentToRender, title = 'JLand', templateToRender = 'template', scriptSource = 'undefined') {
   return res.render(templateToRender, {reactData: ReactDOM.renderToStaticMarkup(componentToRender), title: title,
     scriptSource: scriptSource})
 }
@@ -175,15 +244,34 @@ function getLevel(exp) {
   return returnNum;
 }
 
-// calculates health value based on user's level
+// calculate health value based on user's level
 function getHealth(playerLevel) {
   const healthBonusFromLevel = playerLevel * 15;
   return 85 + healthBonusFromLevel;
 }
 
+// get a random number between min and max (inclusive)
+function rollDamageInRange(min, max) {
+  const damageRange = Math.abs(max - min);
+  // number of possible damage values. eg: range between 2 and 5 damage = 4 possible values [2, 3, 4, 5]
+  
+  return min + Math.round((Math.random() * damageRange));
+  // get a random value between 0 and 1, then multiply by range to get a value between 0 and damageRange,
+  // then round to a whole num and add min to get a damage value between range of min and max (inclusive)
+}
+
+
+//
+//
+// End pure logical functions
+// Begin impure query functions
+//
+//
+
+
 // render component inside 'character data top bar' and 'navigation left bar'
-// TODO: remove commented console statements when no longer necessary
-function renderWithNavigationShell (res, username, componentToRender, pageTitle, templateToRender = 'template',
+// TODO: remove commented console statements when no longer necessary or update to logger calls
+function renderWithNavigationShell(res, username, componentToRender, pageTitle, templateToRender = 'template',
                                    scriptSource = '', optProps) {
   db.query(
     `SELECT * FROM characters WHERE username = ?`,
@@ -237,21 +325,161 @@ function renderZoneBattle(res, zone, pageTitle, username, originalUrl) {
   });
 }
 
+// function that calls db querying functions asynchronously, then calls back with the queried values
+// stored as keys in the results object
+function playerAttack(playerID, enemyID, playerWeaponID, playerHealth, enemyHealth, res, urlToReturnTo) {
+  async.parallel({
+    newPlayerHealth: function(callback) {
+      console.log('inside newPlayerHealth');
+      rollEnemyMeleeDamage(enemyID, (err, enemyDamage) => {
+        callback(err, playerHealth - enemyDamage);
+      });
+    },
+    newEnemyHealth: function(callback) {
+      console.log('inside newEnemyHealth');
+      rollPlayerMeleeDamage(playerWeaponID, (err, playerDamage) => {
+        callback(err, enemyHealth - playerDamage);
+      })
+    }
+  },
+    function(err, results) {
+      console.log('inside final cb, err: ', err, ' results: ', results);
+      playerAttackCallback(err, {
+        ...results, // assign all queries values to an object, followed by additional required variables
+        playerID: playerID,
+        res: res,
+        urlToReturnTo: urlToReturnTo
+      })
+    }
+  );
+}
 
-app.set('view engine', 'pug'); // sets template engine to pug
-app.use(bodyparser.urlencoded()); // allows url encoding to be understood
-app.use(cookieparser('urgheyyoubighomolol')); // secret for cookies
-app.use('/static', express.static('src/static')); // sets static path
+// function that querys db for enemy data, then calls back with a random number between
+// min_melee_damage and max_melee_damage (inclusive)
+function rollEnemyMeleeDamage(enemyID, cb) {
+  db.query(
+    `SELECT * FROM enemies WHERE id = ?`,
+    [enemyID],
+    function(err, results) {
+      if (err) {
+        cb(err);
+        return;
+      }
+      cb(null, rollDamageInRange(results[0].min_melee_damage, results[0].max_melee_damage));
+    }
+  );
+}
 
-// sets express to use cookie sessions, uses a secret, and sets max age
-app.use(cookieSession({
-  name: 'user-session',
-  keys: ['urgheyyoubighomolol'],
-  maxAge: .025 * 10 * 60 * 1000 //15 seconds
-}));
+// function that querys db for player weapon data, then calls back with a random number between
+// min_melee_damage and max_melee_damage (inclusive)
+function rollPlayerMeleeDamage(playerWeaponID, cb) {
+  db.query(
+    `SELECT * FROM items WHERE id = ?`,
+    [playerWeaponID],
+    function(err, results) {
+      if (err) {
+        cb(err);
+        return;
+      }
+      cb(null, rollDamageInRange(results[0].min_melee_damage, results[0].max_melee_damage));
+    }
+  );
+}
+
+// callback function that
+function playerAttackCallback(err, results) {
+  if (err) {
+    console.log('error in playerAttackCallback, this: ', this);
+    return;
+  }
+  const { newPlayerHealth, newEnemyHealth, playerID, res, urlToReturnTo } = results;
+  db.query(
+    `UPDATE battles_in_progress SET player_health = ?, enemy_health = ? WHERE character_id = ?`,
+    [newPlayerHealth, newEnemyHealth, playerID],
+    function(err) {
+      if (err) throw err;
+      console.log('newEnemyHealth, newPlayerHealth: ', newEnemyHealth, newPlayerHealth);
+      res.redirect(urlToReturnTo); // redirects player to current zone, which will re-render the battle with new state
+      // TODO could be heavily optimized to hot reload state with json endpoints, but that drastically changes the structure of the app
+    }
+  );
+}
 
 
-// when / is requested: renders login page
+//
+//
+// End impure query functions
+// Begin
+//
+//
+
+
+class Controllers {
+  constructor(db, logger) {
+    this.db = db;
+    this.logger = logger;
+  }
+  
+  createLoginController() {
+    const db = this.db;
+    return function loginController(req, res) {
+      const failedLoginPage = <LoginPage failedLogin={{display:'default'}} />;
+      const usernameFromLogin = req.body.username;
+      const passwordFromLogin = req.body.password;
+  
+      function onLoginQueryFinished(err, results) {
+        if (err) res.send(500);
+        const userResults = results[0];
+        if (!userResults) {
+          renderWithTemplate(res, failedLoginPage);
+          return;
+        }
+        if (passwordFromLogin && userResults.password === passwordFromLogin) {
+          res.cookie('username', `${userResults.username}`, { signed: true, path: '/' });
+          // console.log('cookie set, redirecting to /inventory');
+          res.redirect(302, '/inventory');
+        }
+      }
+      
+      db.loginPlayer(usernameFromLogin, passwordFromLogin, onLoginQueryFinished);
+    };
+  }
+  
+  createSignupPostController() {
+    return function signupPostController(req, res) {
+      const attemptedUsername = req.body.username;
+      const password = req.body.password;
+      const confirmPassword = req.body.confirmPassword;
+      db.query(
+        `SELECT * FROM characters WHERE username=?`,
+        [attemptedUsername],
+        function (err, results) {
+          if (err) res.send(500);
+          if (typeof results === 'object' && !results[0]) {
+        
+          }
+          else if (typeof results === 'object' && results[0]) {
+        
+          }
+          else res.send(500);
+        }
+      )
+    }
+  }
+}
+
+const controllers = new Controllers(db, logger);
+
+
+//
+//
+// End
+// Begin request handling for URLs
+//
+//
+
+
+// when the base URL is requested: renders login page
 app.get('/', function(req, res) {
   const loginPage = <LoginPage />;
   renderWithTemplate(res, loginPage);
@@ -259,55 +487,17 @@ app.get('/', function(req, res) {
 
 // checks login info against db login info, temporary method for proof of concept, obviously pw shouldn't be plaintext!
 // TODO: implement hashing of passwords and update this logic
-app.post('/login', function(req, res) {
-  const failedLoginPage = <LoginPage failedLogin={{display:'default'}} />;
-  const usernameFromLogin = req.body.username;
-  const passwordFromLogin = req.body.password;
-  db.query(
-    `SELECT * FROM characters WHERE username = ? AND password = ?`,
-    [usernameFromLogin, passwordFromLogin],
-    function(err, results) {
-      if (err) res.send(500);
-      const userResults = results[0];
-      if (!userResults) {
-        renderWithTemplate(res, failedLoginPage);
-        return;
-      }
-      if (passwordFromLogin && userResults.password === passwordFromLogin) {
-        res.cookie('username', `${userResults.username}`, { signed: true, path: '/' });
-        // console.log('cookie set, redirecting to /inventory');
-        res.redirect(302, '/inventory');
-      }
-  });
-});
+app.post('/login', controllers.createLoginController());
 
 // when /signup is requested: renders signup page
 app.get('/signup', function(req, res) {
-  renderWithTemplate(res, <SignupPage />, 'Sign up for JLand', 'template', "/static/scripts/signup.js");
+  renderWithTemplate(res, <SignupPage />, 'Sign up for JLand', 'template', '/static/scripts/signup.js');
 });
 
 // checks username against current userbase, compares passwords
 // TODO: make username check happen before post
 // TODO: store password via hash instead of as plaintext
-app.post('/signup/post', function(req, res) {
-  const attemptedUsername = req.body.username;
-  const password = req.body.password;
-  const confirmPassword = req.body.confirmPassword;
-  db.query(
-    `SELECT * FROM characters WHERE username=?`,
-    [attemptedUsername],
-    function(err, results) {
-      if (err) res.send(500);
-      if (typeof results === 'object' && !results[0]) {
-      
-      }
-      else if (typeof results === 'object' && results[0]) {
-      
-      }
-      else res.send(500);
-    }
-  )
-});
+app.post('/signup/post', controllers.createSignupPostController());
 
 // when /map is requested: renders map page
 app.get('/map', function(req, res) {
@@ -378,6 +568,8 @@ app.get('/text_thing', function(req, res) {
   renderWithNavigationShell(res, username, 'text_thing', 'Text Typing!', 'template', '/static/scripts/textThing.js');
 });
 
+// endpoint to be hit when player clicks 'attack' button in battle
+//
 app.post('/battle_attack_post' , function (req, res) {
   const username = req.signedCookies.username;
   db.query(
@@ -385,14 +577,15 @@ app.post('/battle_attack_post' , function (req, res) {
     [username],
     function(err, results) {
       if (err) throw err;
-      console.log('id: ', results[0].id);
+      const playerID = results[0].id;
       db.query(
         `SELECT * FROM battles_in_progress JOIN zones ON (battles_in_progress.zone_id = zones.id) WHERE character_id=?;`,
-        [results[0].id],
+        [playerID],
         function(err, results) {
           if (err) throw err;
-          console.log('queried zone: ', results[0].name);
-          res.redirect('/zone/' + results[0].name.replace(' ', '_'));
+          const { enemy_id, player_weapon_id, player_health, enemy_health } = results[0];
+          const urlToReturnTo = '/zone/' + results[0].name.replace(' ', '_');
+          playerAttack(playerID, enemy_id, player_weapon_id, player_health, enemy_health, res, urlToReturnTo);
         }
       );
     }
@@ -404,7 +597,7 @@ app.get('/*', function(req, res) {
   res.send('404, page not found');
 });
 
-console.log(process.env); //TODO: probably remove
+//console.log(process.env); //TODO: probably remove
 
 // sets app to listen for requests on port 8001
 app.listen(8001, function appDotListenErrorHandler(err) {
