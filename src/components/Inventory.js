@@ -8,21 +8,26 @@ export default class Inventory extends Component {
   render() {
     // itemIDs is an array of IDs associated with the user in the inventory table, dupes represent multiple of an item
     const { results, itemIDs } = this.props.inventoryItemDataObject;
-    
+
+    // IIFE that forms inventoryItems object lookup table for use while mapping in renderItems
     const inventoryItems = (function() {
       const lookupTableByItemID = {}; // lookup table that stores item data by id
-      results.forEach(function (e) {
-        lookupTableByItemID[e.id] = e;
-      });
-      return lookupTableByItemID;
-    })(); // IIFE that forms inventoryItems object lookup table for use while mapping in renderItems
+      if (results) {
+        results.forEach(function (e) {
+          lookupTableByItemID[e.id] = e;
+        });
+        return lookupTableByItemID;
+      }
+    })();
     
     // renderItems takes in item data (from the db) and creates an element for each of the items using a map function
     // Each element is stored in the elements array, and the function returns that array when the map is complete
     function renderItems (inventoryItems) {
       const elements = []; // array that will store all inventory item elements, to be returned by renderItems function
-      
-      if (inventoryItems && itemIDs) { // makes sure that all data is present before attempting to populate inventory
+
+
+
+      if (inventoryItems && itemIDs && typeof inventoryItems !== 'undefined' && typeof itemIDs[0] !== 'undefined') { // makes sure that all data is present before attempting to populate inventory
         itemIDs.map((elm, index) => {
           const e = inventoryItems[elm]; // elm is current itemID, inventoryItems is item lookup table
           const element = (
@@ -51,7 +56,7 @@ export default class Inventory extends Component {
           elements.push(element); // pushes current inventory element into the array returned by renderItems
         }) // end of itemIDs.map
       }
-      return elements; // array that stores all inventory item elements, returned by renderItems function
+      return elements || []; // array that stores all inventory item elements, returned by renderItems function
     }
     
     return (

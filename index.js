@@ -37,6 +37,7 @@ import SignupPage from './src/components/SignupPage';
 const app = express(); // initialize app
 const db = mysql.createConnection({ // initialize db login info (required for future connect call) and typecast
   host: 'localhost',
+  //port: '3306',
   user: 'root',
   password: 'thisisplaintextlmao',
   database: 'first',
@@ -63,11 +64,13 @@ const db = mysql.createConnection({ // initialize db login info (required for fu
 });
 db.connect(function databaseConnectErrorHandler(err) { // finalizes connection to db, throws an error if there is one
   if (err) {
+    console.log('error connecting to db in db.connect() call');
     logger.error('Error connecting to database', err);
     throw err;
   }
 });
 
+//console.log('attempted to connect to database, db variable current value: ', db);
 // database class for initiating db functions and attaching them to any number of dbs
 // to be called with instances of db and logger
 class DatabaseClient {
@@ -215,7 +218,8 @@ const dbQueries = new DatabaseClient(db /*, logger TODO: use or delete*/); // in
 
 
 app.set('view engine', 'pug'); // sets template engine to pug
-app.use(bodyparser.urlencoded()); // allows url encoding to be understood
+app.use(bodyparser.urlencoded({ extended: true })); // allows url encoding to be understood. Called with
+// { extended: true } object literal to set a necessary flag
 app.use(cookieparser('urgheyyoubighomolol')); // secret for cookies
 app.use('/static', express.static('src/static')); // sets static path
 
@@ -429,7 +433,8 @@ class Controllers {
   }
   
   createLoginController() {
-    const db = this.db;
+    //const db = this.db;
+    // May have previously been used for db.loginPlayer call, updated to dbQueries.loginPlayer
     return function loginController(req, res) {
       const failedLoginPage = <LoginPage failedLogin={{display:'default'}} />;
       const usernameFromLogin = req.body.username;
@@ -519,13 +524,13 @@ app.get('/inventory', function(req, res) {
     `SELECT * FROM characters WHERE username=?`,
     [username],
     function(err, results) {
-      if (err) res.send(500);
+      if (err) res.sendStatus(500);
       const userData = results[0];
       db.query(
         `SELECT * FROM inventory WHERE character_id=?`,
         [userData.id],
         function(err, results) {
-          if (err) res.send(500);
+          if (err) res.sendStatus(500);
           const itemIDs = [];
           if (results) {
             results.forEach(function inventoryItemForEachCallback(e) {
@@ -537,9 +542,16 @@ app.get('/inventory', function(req, res) {
             `SELECT * FROM items WHERE id IN (?)`,
             [itemIDs],
             function(err, results) {
-              if (err) res.send(500);
-              renderWithNavigationShell(res, username, 'inventory', `${username}'s nice things`, 'template', '',
-                {results: results, itemIDs: itemIDs});
+              if (err) res.sendStatus(500);
+              // console.log('Rendering Inventory component with optProps:',
+              //   JSON.stringify({results: results, itemIDs: itemIDs}));
+              if (results && itemIDs && typeof results !== 'undefined' && typeof itemIDs[0] !== 'undefined') {
+                renderWithNavigationShell(res, username, 'inventory', `${username}'s nice things`, 'template', '',
+                  {results: results, itemIDs: itemIDs});
+              } else {
+                renderWithNavigationShell(res, username, 'inventory', `${username}'s nice things`, 'template', '',
+                  {results: [], itemIDs: []});
+              }
             });
         });
     });
