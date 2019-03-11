@@ -4,7 +4,7 @@ const React = require('react');
 const ReactDOM = require('react-dom/server');
 const bodyparser = require('body-parser');
 const cookieparser = require('cookie-parser');
-const mysql = require('mysql');
+const mysql = require('mysql2');
 const cookieSession = require('cookie-session');
 const async = require('async');
 const winston = require('winston');
@@ -51,7 +51,15 @@ const db = mysql.createConnection({ // initialize db login info (required for fu
       return( bytes[ 0 ] === 1 );
     }
     return( useDefaultTypeCasting() );
-  } // transforms buffers (bits) to boolean
+  }, // transforms buffers (bits) to boolean
+  authSwitchHandler(data, cb) {
+    if (data.pluginName === 'mysql_clear_password') {
+      // https://dev.mysql.com/doc/internals/en/clear-text-authentication.html
+      var password = 'password\0';
+      var buffer = Buffer.from(password);
+      cb(null, buffer);
+    }
+  }
 });
 db.connect(function databaseConnectErrorHandler(err) { // finalizes connection to db, throws an error if there is one
   if (err) {
@@ -101,7 +109,7 @@ class DatabaseClient {
   }
   
   loginPlayer(usernameFromLogin, passwordFromLogin, cb) {
-    db.query(
+    this.db.query(
       `SELECT * FROM characters WHERE username = ? AND password = ?`,
       [usernameFromLogin, passwordFromLogin],
       cb
@@ -130,7 +138,7 @@ class DatabaseClient {
           const characterLevel = getLevel(characterData.experience);
           const characterHealth = getHealth(characterLevel);
           this.getRandomEnemyByZone(zone, function(enemies, randNum, randEnemy, zoneID) {
-            db.query(
+            this.db.query(
               `SELECT * FROM enemies WHERE id=?`,
               [randEnemy.enemy_id],
               function(err, results) {
@@ -171,7 +179,7 @@ class DatabaseClient {
           return;
         }
         const zoneData = results[0];
-        db.query(
+        this.db.query(
           `SELECT * FROM zone_enemies WHERE zone_id=?`,
           [zoneData.id],
           function(err, results) {
@@ -441,7 +449,7 @@ class Controllers {
         }
       }
       
-      db.loginPlayer(usernameFromLogin, passwordFromLogin, onLoginQueryFinished);
+      dbQueries.loginPlayer(usernameFromLogin, passwordFromLogin, onLoginQueryFinished);
     };
   }
   
