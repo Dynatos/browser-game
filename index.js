@@ -4,7 +4,7 @@ const React = require('react');
 const ReactDOM = require('react-dom/server');
 const bodyparser = require('body-parser');
 const cookieparser = require('cookie-parser');
-const mysql = require('mysql2');
+const mysql = require('mysql');
 const cookieSession = require('cookie-session');
 const async = require('async');
 const winston = require('winston');
@@ -56,8 +56,8 @@ const db = mysql.createConnection({ // initialize db login info (required for fu
   authSwitchHandler(data, cb) {
     if (data.pluginName === 'mysql_clear_password') {
       // https://dev.mysql.com/doc/internals/en/clear-text-authentication.html
-      var password = 'password\0';
-      var buffer = Buffer.from(password);
+      let password = 'password\0';
+      let buffer = Buffer.from(password);
       cb(null, buffer);
     }
   }
@@ -145,11 +145,17 @@ class DatabaseClient {
               `SELECT * FROM enemies WHERE id=?`,
               [randEnemy.enemy_id],
               function(err, results) {
-                if (err) res.send(500);
+                if (err) {
+                  res.send(500);
+                  return;
+                }
                 const enemyData = results[0];
                 this.insertIntoBattlesInProgress(userID, randEnemy.enemy_id, zoneID, equippedWeaponData.item_id, characterHealth, enemyData.initial_health,
                   function(err) {
-                    if (err) res.send(500);
+                    if (err) {
+                      res.send(500);
+                      return;
+                    }
                     const battle = <Battle bg={'/static/images/zones/enchanted_forest/background.png'} />;
                     return renderWithTemplate(res, battle);
                   })
@@ -240,9 +246,12 @@ app.use(cookieSession({
 
 
 // used to render pages with templates, makes templates opt-in. Also allows for easy script insertion
-function renderWithTemplate (res, componentToRender, title = 'JLand', templateToRender = 'template', scriptSource = 'undefined') {
-  return res.render(templateToRender, {reactData: ReactDOM.renderToStaticMarkup(componentToRender), title: title,
-    scriptSource: scriptSource})
+function renderWithTemplate (res, componentToRender, title = 'JLand', templateToRender = 'template', scriptSource) {
+  return res.render(templateToRender, {
+    reactData: ReactDOM.renderToStaticMarkup(componentToRender),
+    title: title,
+    scriptSource: scriptSource
+  })
 }
 
 // calculates player level from experience value, necessary because storing both exp and level could cause inconsistency
@@ -289,7 +298,10 @@ function renderWithNavigationShell(res, username, componentToRender, pageTitle, 
     `SELECT * FROM characters WHERE username = ?`,
     [username],
     function(err, results) {
-      if (err) res.send(500);
+      if (err) {
+        res.send(500);
+        return;
+      }
       
       const characterQueryResults = results[0];
       // console.log('results from querying characters table for ', username, 'are ', characterQueryResults); //TODO remove
@@ -298,7 +310,10 @@ function renderWithNavigationShell(res, username, componentToRender, pageTitle, 
         `SELECT * FROM character_data WHERE id = ?`,
         [characterQueryResults.id],
         function(err, results) {
-          if (err) res.send(500);
+          if (err) {
+            res.send(500);
+            return;
+          }
           
           const characterDataQueryResults = results[0];
           // console.log('results of querying character_data table are', characterDataQueryResults); //TODO remove
@@ -325,7 +340,10 @@ function renderZoneBattle(res, zone, pageTitle, username, originalUrl) {
   dbQueries.getCharacterByUsername(username, function onGetCharacterForRenderZoneBattle(err, results) {
     const userData = results[0];
     dbQueries.checkBattlesInProgress(userData.id, function(err, results) {
-        if (err) res.send(500);
+      if (err) {
+        res.send(500);
+        return;
+      }
         if (results[0] && !results[0].completed) {
           const battle = <Battle bg={'/static/images/zones/enchanted_forest/background.png'} originalUrl={originalUrl} />;
           return renderWithTemplate(res, battle, pageTitle);
@@ -441,7 +459,11 @@ class Controllers {
       const passwordFromLogin = req.body.password;
   
       function onLoginQueryFinished(err, results) {
-        if (err) res.send(500);
+        if (err) {
+          console.error('Failed to login player', err);
+          res.send(500);
+          return;
+        }
         const userResults = results[0];
         if (!userResults) {
           renderWithTemplate(res, failedLoginPage);
@@ -467,7 +489,10 @@ class Controllers {
         `SELECT * FROM characters WHERE username=?`,
         [attemptedUsername],
         function (err, results) {
-          if (err) res.send(500);
+          if (err) {
+            res.send(500);
+            return;
+          }
           if (typeof results === 'object' && !results[0]) {
         
           }
@@ -524,25 +549,38 @@ app.get('/inventory', function(req, res) {
     `SELECT * FROM characters WHERE username=?`,
     [username],
     function(err, results) {
-      if (err) res.sendStatus(500);
+      if (err) {
+        res.sendStatus(500);
+        return;
+      }
       const userData = results[0];
       db.query(
         `SELECT * FROM inventory WHERE character_id=?`,
         [userData.id],
         function(err, results) {
-          if (err) res.sendStatus(500);
+          if (err) {
+            res.sendStatus(500);
+            return;
+          }
           const itemIDs = [];
-          if (results) {
+          if (results.length) {
             results.forEach(function inventoryItemForEachCallback(e) {
               itemIDs.push(e.item_id);
             });
+          } else {
+            renderWithNavigationShell(res, username, 'inventory', `${username}'s nice things`, 'template', '',
+              {results: [], itemIDs: []});
+            return;
           }
           //console.log('results from query for inventory items: ', itemIDs); TODO: remove
           db.query(
             `SELECT * FROM items WHERE id IN (?)`,
             [itemIDs],
             function(err, results) {
-              if (err) res.sendStatus(500);
+              if (err) {
+                res.sendStatus(500);
+                return;
+              }
               // console.log('Rendering Inventory component with optProps:',
               //   JSON.stringify({results: results, itemIDs: itemIDs}));
               if (results && itemIDs && typeof results !== 'undefined' && typeof itemIDs[0] !== 'undefined') {
@@ -612,16 +650,42 @@ app.post('/battle_attack_post' , function (req, res) {
   )
 });
 
+app.get('/test', function(req, res) {
+
+  dbQueries.loginPlayer(
+    'therealgentoo',
+    'password',
+    function(err, results) {
+      if (err) throw err;
+
+      res.send(results[0]);
+    }
+  );
+
+  // db.query(
+  //   `SELECT * FROM characters WHERE username = ? AND password = ?`,
+  //   ['therealgentoo', 'password'],
+  //   function(err, results) {
+  //     if (err) throw err;
+  //
+  //     res.send(results[0]);
+  //   }
+  // );
+});
+
 // when any page with no response handler is requested: renders 404 text on page
 app.get('/*', function(req, res) {
-  res.send('404, page not found');
+  res.sendStatus(404);
 });
 
 //console.log(process.env); //TODO: probably remove
 
 // sets app to listen for requests on port 8001
 app.listen(8001, function appDotListenErrorHandler(err) {
-  if (err) res.send(500);
+  if (err) {
+    res.send(500);
+    return;
+  }
   console.log('Listening at http://localhost:8001/');
 });
 

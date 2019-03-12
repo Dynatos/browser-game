@@ -1,14 +1,4 @@
-@media only screen and (min-width: 960px) {
-    .game-window-root {
-        width: 960px;
-    }
-}
 
-@media only screen and (min-height: 600px) {
-    .game-window-root {
-        height: 600px;
-    }
-}
 
 body {
     margin: 0 auto;
@@ -330,4 +320,16 @@ body {
     width: 100%;
     font-size: 72px;
     margin: auto;
+}
+
+@media only screen and (min-width: 960px) {
+    .game-window-root {
+        width: 960px;
+    }
+}
+
+@media only screen and (min-height: 600px) {
+    .game-window-root {
+        height: 600px;
+    }
 }

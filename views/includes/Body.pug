@@ -1,3 +1,4 @@
 body
     div.game-window-root !{reactData}
-    script(type="text/javascript" src= scriptSource)
+    if (typeof (scriptSource) !== 'undefined')
+        script(type="text/javascript" src= scriptSource)
