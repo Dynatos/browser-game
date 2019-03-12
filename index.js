@@ -70,7 +70,6 @@ db.connect(function databaseConnectErrorHandler(err) { // finalizes connection t
   }
 });
 
-//console.log('attempted to connect to database, db variable current value: ', db);
 // database class for initiating db functions and attaching them to any number of dbs
 // to be called with instances of db and logger
 class DatabaseClient {
@@ -83,7 +82,17 @@ class DatabaseClient {
     this.db.query(
       `SELECT * FROM characters WHERE username=?`,
       [username],
-      callback
+      (err, results) => {
+        if (err) {
+          logger.error('Error fetching from characters using Username', {
+            err,
+            results
+          });
+          callback(err, results);
+          return;
+        }
+        callback(null, results);
+      }
     )
   }
   
@@ -91,7 +100,17 @@ class DatabaseClient {
     this.db.query(
       `SELECT * FROM character_data WHERE id=?`,
       [id],
-      callback
+      (err, results) => {
+        if (err) {
+          logger.error('Error fetching from character_data using Character_ID', {
+            err,
+            results
+          });
+          callback(err, results);
+          return;
+        }
+        callback(null, results);
+      }
     )
   }
   
@@ -99,7 +118,17 @@ class DatabaseClient {
     this.db.query(
       `SELECT * FROM inventory WHERE character_id=? AND equipped=true`,
       [characterID],
-      callback
+      (err, results) => {
+        if (err) {
+          logger.error('Error fetching currently equipped weapon from inventory using Character_ID', {
+            err,
+            results
+          });
+          callback(err, results);
+          return;
+        }
+        callback(null, results);
+      }
     )
   }
   
@@ -107,62 +136,70 @@ class DatabaseClient {
     this.db.query(
       `SELECT * FROM battles_in_progress WHERE character_id=?`,
       [character_ID],
-      callback
+      (err, results) => {
+        if (err) {
+          logger.error('Error fetching from battles_in_progress using Character_ID', {
+            err,
+            results
+          });
+          callback(err, results);
+          return;
+        }
+        callback(null, results);
+      }
     )
   }
   
-  loginPlayer(usernameFromLogin, passwordFromLogin, cb) {
+  loginPlayer(usernameFromLogin, passwordFromLogin, callback) {
     this.db.query(
       `SELECT * FROM characters WHERE username = ? AND password = ?`,
       [usernameFromLogin, passwordFromLogin],
-      cb
+      (err, results) => {
+        if (err) {
+          logger.error('Error during loginPlayer when fetching from characters using Username and Password', {
+            err,
+            results
+          });
+          callback(err, results);
+          return;
+        }
+        callback(null, results);
+      }
     );
   }
   
   // TODO: extract data fetching from component rendering, add handling for errors
   renderNewBattle(res, zone, userID) {
     const logger = this.logger;
-    this.getEquippedWeaponByCharacterID(userID, function(err, results) {
+    const that = this;
+
+    async.auto({
+      getEquippedWeapon: (callback) => this.getEquippedWeaponByCharacterID(userID, callback),
+      getCharacterData: (callback) => this.getCharacterDataByID(userID, callback),
+      getRandomEnemy: (callback) => this.getRandomEnemyByZoneName(zone, (err, enemies, randNum, randEnemy, zoneID) => {
+        callback(err, {enemies, randNum, randEnemy, zoneID});
+      }),
+      setBattleInProgress: ['getEquippedWeapon', 'getCharacterData', 'getRandomEnemy', (results, callback) => {
+        this.insertIntoBattlesInProgress(
+          userID,
+          results.getRandomEnemy.enemies.enemy_id,
+          results.getRandomEnemy.enemies.zone_id,
+          results.getEquippedWeapon[0].item_id,
+          getHealth(getLevel(results.getCharacterData[0].experience)),
+          results.getRandomEnemy.enemies.initial_health,
+          callback
+        );
+      }]
+    }, (err, results) => {
       if (err) {
-        logger.error('Error fetching equipment weapon by character ID', {
-          err,
-          results
-        });
-        return res.send(500);
+        logger.error('Error rendering new battle', err);
+        return
       }
-      const equippedWeaponData = results[0];
-      this.getCharacterDataByID(userID,
-        function(err, results) {
-          if (err) {
-            logger.error('Error getting character data by ID', err);
-            return;
-          }
-          const characterData = results[0];
-          const characterLevel = getLevel(characterData.experience);
-          const characterHealth = getHealth(characterLevel);
-          this.getRandomEnemyByZone(zone, function(enemies, randNum, randEnemy, zoneID) {
-            this.db.query(
-              `SELECT * FROM enemies WHERE id=?`,
-              [randEnemy.enemy_id],
-              function(err, results) {
-                if (err) {
-                  res.send(500);
-                  return;
-                }
-                const enemyData = results[0];
-                this.insertIntoBattlesInProgress(userID, randEnemy.enemy_id, zoneID, equippedWeaponData.item_id, characterHealth, enemyData.initial_health,
-                  function(err) {
-                    if (err) {
-                      res.send(500);
-                      return;
-                    }
-                    const battle = <Battle bg={'/static/images/zones/enchanted_forest/background.png'} />;
-                    return renderWithTemplate(res, battle);
-                  })
-              })
-          })
-        })
-    })
+      console.log('Created new battle', results);
+    });
+
+    const battle = <Battle bg={'/static/images/zones/enchanted_forest/background.png'} />;
+    return renderWithTemplate(res, battle);
   }
   
   insertIntoBattlesInProgress(userID, enemy, zoneID, equippedWeaponID, characterHealth, enemyHealth, callback) {
@@ -170,39 +207,102 @@ class DatabaseClient {
       `INSERT INTO battles_in_progress (character_id, enemy_id, zone_id, player_weapon_id, player_health, enemy_health,
       completed) VALUES (?, ?, ?, ?, ?, ?, default)`,
       [userID, enemy, zoneID, equippedWeaponID, characterHealth, enemyHealth],
-      callback
+      (err, results) => {
+        if (err) {
+          logger.error('Error inserting into battles_in_progress', {
+            err,
+            results
+          });
+          callback(err, results);
+          return;
+        }
+        callback(null, results);
+      }
     )
   }
-  
-  getRandomEnemyByZone(zone, callback) {
+
+  getRandomEnemyByZoneName(zone, callback) {
     logger.info('getting random enemy by zone', {zone});
+
+    async.auto({
+      getZoneID: (callback) => this.getZoneID(zone, callback),
+      getZoneEnemies: ['getZoneID', (results, callback) => this.getZoneEnemies(results.getZoneID[0], callback)],
+      getEnemyData: ['getZoneEnemies', (results, callback) => this.getEnemyData(results.getZoneEnemies[2], callback)]
+    }, (err, results) => {
+      if (err) {
+        logger.error('Error inserting into battles_in_progress', {
+          err,
+          results
+        });
+        callback(err, results);
+        return;
+      }
+      callback(null, {
+        enemy_id: results.getZoneEnemies[2].enemy_id,
+        initial_health: results.getEnemyData[0].initial_health,
+        zone_id: results.getZoneID[0].id
+      });
+    })
+  }
+
+  getZoneID(zone, callback) {
     this.db.query(
       `SELECT * FROM zones WHERE name=?`,
       [zone],
-      function(err, results) {
+      (err, results) => {
         if (err) {
-          logger.error('Error getting random enemy by zone', {
+          logger.error('Error inserting into battles_in_progress', {
             err,
-            zone
+            results
           });
+          callback(err, results);
           return;
         }
-        const zoneData = results[0];
-        this.db.query(
-          `SELECT * FROM zone_enemies WHERE zone_id=?`,
-          [zoneData.id],
-          function(err, results) {
-            if (err) console.log(`Error getting zone_enemies from database, error message: ${err}`);
-            const enemies = results;
-            const randNum = Math.random();
-            const randEnemy = enemies[Math.floor(randNum * enemies.length)];
-            callback(enemies, randNum, randEnemy, zoneData.id);
-          })
+        callback(null, results);
+    })
+  }
+
+  getZoneEnemies(zoneData, callback) {
+    this.db.query(
+      `SELECT * FROM zone_enemies WHERE zone_id=?`,
+      [zoneData.id],
+      (err, results) => {
+        if (err) {
+          logger.error('Error getting zone_enemies from database, error message:', {
+            err,
+            results
+          });
+          callback(err, results);
+          return;
+        }
+        const enemies = results;
+        const randNum = Math.random();
+        const randEnemy = enemies[Math.floor(randNum * enemies.length)];
+        callback(null, enemies, randNum, randEnemy, zoneData.id);
       })
   }
+
+  getEnemyData(randEnemy, callback) {
+    this.db.query(
+      `SELECT * FROM enemies WHERE id=?`,
+      [randEnemy.enemy_id],
+      (err, results) => {
+        if (err) {
+          logger.error('Error inserting into battles_in_progress', {
+            err,
+            results
+          });
+          callback(err, results);
+          return;
+        }
+        callback(null, results);
+      })
+  }
+
+
 }
 
-// initialize winston as logger for future injection
+// initialize logger variable with winston for future injection
 const logger = winston.createLogger({
   level: 'info',
   format: winston.format.json(),
@@ -293,7 +393,7 @@ function rollDamageInRange(min, max) {
 // render component inside 'character data top bar' and 'navigation left bar'
 // TODO: remove commented console statements when no longer necessary or update to logger calls
 function renderWithNavigationShell(res, username, componentToRender, pageTitle, templateToRender = 'template',
-                                   scriptSource = '', optProps) {
+                                   scriptSource, optProps) {
   db.query(
     `SELECT * FROM characters WHERE username = ?`,
     [username],
@@ -338,11 +438,15 @@ function renderWithNavigationShell(res, username, componentToRender, pageTitle, 
 // checks for currently in progress battle via user's ID, creates one if there isn't one, and renders the page
 function renderZoneBattle(res, zone, pageTitle, username, originalUrl) {
   dbQueries.getCharacterByUsername(username, function onGetCharacterForRenderZoneBattle(err, results) {
+    if (err) {
+      res.send(500);
+      return
+    }
     const userData = results[0];
     dbQueries.checkBattlesInProgress(userData.id, function(err, results) {
       if (err) {
         res.send(500);
-        return;
+        return
       }
         if (results[0] && !results[0].completed) {
           const battle = <Battle bg={'/static/images/zones/enchanted_forest/background.png'} originalUrl={originalUrl} />;
