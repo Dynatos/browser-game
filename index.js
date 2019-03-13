@@ -171,7 +171,6 @@ class DatabaseClient {
   // TODO: extract data fetching from component rendering, add handling for errors
   renderNewBattle(res, zone, userID) {
     const logger = this.logger;
-    const battleDOMElement = [];
 
     async.auto({
       getEquippedWeapon: (callback) => this.getEquippedWeaponByCharacterID(userID, callback),
@@ -180,7 +179,6 @@ class DatabaseClient {
         callback(err, {enemies, randNum, randEnemy, zoneID});
       }),
       setBattleInProgress: ['getEquippedWeapon', 'getCharacterData', 'getRandomEnemy', (results, callback) => {
-        battleDOMElement.push(<Battle bg={`/static/images/zones/${results.getRandomEnemy.enemies.zone_name}/background.png`} />);
         this.insertIntoBattlesInProgress(
           userID,
           results.getRandomEnemy.enemies.enemy_id,
@@ -194,13 +192,14 @@ class DatabaseClient {
     }, (err, results) => {
       if (err) {
         logger.error('Error rendering new battle', err);
-        return
+        res.sendStatus(500);
+        return;
       }
-      console.log('Created new battle', results);
-    });
 
-    // const battle = <Battle bg={'/static/images/zones/enchanted_forest/background.png'} />;
-    return renderWithTemplate(res, battleDOMElement[0]/*battle*/);
+      const battleBackgroundImageURL = `/static/images/zones/${results.getRandomEnemy.enemies.zone_name.replace(' ', '_')}/background.png`;
+      const battle = <Battle bg={battleBackgroundImageURL} />;
+      return renderWithTemplate(res, battle);
+    });
   }
   
   insertIntoBattlesInProgress(userID, enemy, zoneID, equippedWeaponID, characterHealth, enemyHealth, callback) {
@@ -302,11 +301,17 @@ class DatabaseClient {
   }
 
   getBattleInProgress(userID, callback) {
-    db.query(
+    this.db.query(
       `SELECT * FROM battles_in_progress JOIN zones ON (battles_in_progress.zone_id = zones.id) WHERE character_id=?;`,
       [userID],
-      function(err, results) {
-        if (err) throw err;
+      (err, results) => {
+        if (err) {
+          logger.error('Error getting battle in progress:', {
+            err,
+            results
+          });
+          return;
+        }
         callback(err, results[0]);
       }
     );
@@ -355,10 +360,10 @@ class DatabaseClient {
   }
 
   getAllItemsInUserInventory(userID, res, callback) {
-    db.query(
+    this.db.query(
       `SELECT * FROM inventory WHERE character_id=?`,
       [userID],
-      function(err, results) {
+      (err, results) => {
 
         if (err) {
           res.sendStatus(500);
@@ -372,15 +377,51 @@ class DatabaseClient {
   }
 
   getItemStats(itemIDs, res, callback) {
-    db.query(
+    this.db.query(
       `SELECT * FROM items WHERE id IN (?)`,
       [itemIDs],
-      function(err, results) {
+      (err, results) => {
         if (err) {
           res.sendStatus(500);
           return;
         }
         callback(err, results)
+      }
+    );
+  }
+
+  getZoneNameFromID(zoneID, callback) {
+    this.db.query(
+      `SELECT * FROM zones WHERE id=?`,
+      [zoneID],
+      (err, results) => {
+        if (err) {
+          logger.error('Error getting zone name', {
+            err,
+            results
+          });
+          callback(err, results);
+          return;
+        }
+        callback(err, results)
+      }
+    )
+  }
+
+  updateBattleInProgressHealthValues(results) {
+    const { newPlayerHealth, newEnemyHealth, playerID, res, urlToReturnTo } = results;
+    this.db.query(
+      `UPDATE battles_in_progress SET player_health = ?, enemy_health = ? WHERE character_id = ?`,
+      [newPlayerHealth, newEnemyHealth, playerID],
+      (err) => {
+        if (err) {
+          logger.error('Error updating battles in progress during player attack:', {
+            err
+          });
+          return;
+        }
+        res.redirect(urlToReturnTo); // redirects player to current zone, which will re-render the battle with new state
+        // TODO could be heavily optimized to hot-load new state with json endpoints, but that drastically changes the structure of the app
       }
     );
   }
@@ -534,20 +575,20 @@ function renderZoneBattle(res, zone, pageTitle, username, originalUrl) {
         res.sendStatus(500);
         return
       }
-        if (results[0] && !results[0].completed) {
-          const battle = <Battle bg={'/static/images/zones/enchanted_forest/background.png'} originalUrl={originalUrl} />;
-          return renderWithTemplate(res, battle, pageTitle);
-        }
-        if (!results[0]) {
-          dbQueries.renderNewBattle(res, zone, userData.id);
-        }
-      })
+      if (results[0] && !results[0].completed) {
+        const battle = <Battle bg={`/static/images/zones/${originalUrl}/background.png`} originalUrl={originalUrl} />;
+        return renderWithTemplate(res, battle, pageTitle);
+      }
+      if (!results[0]) {
+        return dbQueries.renderNewBattle(res, zone, userData.id);
+      }
+    })
   });
 }
 
 // function that calls db querying functions asynchronously, then calls back with the queried values
 // stored as keys in the results object
-function playerAttack(playerID, enemyID, playerWeaponID, playerHealth, enemyHealth, res, urlToReturnTo) {
+function handlePlayerAttack(playerID, enemyID, playerWeaponID, playerHealth, enemyHealth, res, urlToReturnTo) {
 
   async.parallel({
     newPlayerHealth: function(callback) {
@@ -563,8 +604,14 @@ function playerAttack(playerID, enemyID, playerWeaponID, playerHealth, enemyHeal
   },
 
   function(err, results) {
-    console.log('inside final cb, results: ', results);
-    playerAttackCallback(err, {
+    if (err) {
+      logger.error('Error handling player attack:', {
+        err,
+        results
+      });
+      return;
+    }
+    dbQueries.updateBattleInProgressHealthValues({
       ...results, // assign all queried values to an object, followed by additional required variables
       playerID: playerID,
       res: res,
@@ -602,25 +649,6 @@ function rollPlayerMeleeDamage(playerWeaponID, cb) {
         return;
       }
       cb(null, rollDamageInRange(results[0].min_melee_damage, results[0].max_melee_damage));
-    }
-  );
-}
-
-// callback function that
-function playerAttackCallback(err, results) {
-  if (err) {
-    console.log('error in playerAttackCallback, this: ', this);
-    return;
-  }
-  const { newPlayerHealth, newEnemyHealth, playerID, res, urlToReturnTo } = results;
-  db.query(
-    `UPDATE battles_in_progress SET player_health = ?, enemy_health = ? WHERE character_id = ?`,
-    [newPlayerHealth, newEnemyHealth, playerID],
-    function(err) {
-      if (err) throw err;
-      console.log('newEnemyHealth, newPlayerHealth: ', newEnemyHealth, newPlayerHealth);
-      res.redirect(urlToReturnTo); // redirects player to current zone, which will re-render the battle with new state
-      // TODO could be heavily optimized to hot reload state with json endpoints, but that drastically changes the structure of the app
     }
   );
 }
@@ -778,7 +806,7 @@ app.get('/zone/enchanted_forest', function(req, res) {
 
 // endpoint to be hit when player clicks 'attack' button in battle
 //
-app.post('/battle_attack_post' , function (req, res) {
+app.post('/battle_attack_post' , function(req, res) {
 
   const userData = {
     username: req.signedCookies.username
@@ -791,7 +819,7 @@ app.post('/battle_attack_post' , function (req, res) {
     dbQueries.getBattleInProgress(userData.userID, (err, results) => {
       const { enemy_id, player_weapon_id, player_health, enemy_health } = results;
       const urlToReturnTo = '/zone/' + results.name.replace(' ', '_');
-      playerAttack(userData.userID, enemy_id, player_weapon_id, player_health, enemy_health, res, urlToReturnTo);
+      handlePlayerAttack(userData.userID, enemy_id, player_weapon_id, player_health, enemy_health, res, urlToReturnTo);
     })
 
   });
