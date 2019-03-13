@@ -171,7 +171,7 @@ class DatabaseClient {
   // TODO: extract data fetching from component rendering, add handling for errors
   renderNewBattle(res, zone, userID) {
     const logger = this.logger;
-    const that = this;
+    const battleDOMElement = [];
 
     async.auto({
       getEquippedWeapon: (callback) => this.getEquippedWeaponByCharacterID(userID, callback),
@@ -180,6 +180,7 @@ class DatabaseClient {
         callback(err, {enemies, randNum, randEnemy, zoneID});
       }),
       setBattleInProgress: ['getEquippedWeapon', 'getCharacterData', 'getRandomEnemy', (results, callback) => {
+        battleDOMElement.push(<Battle bg={`/static/images/zones/${results.getRandomEnemy.enemies.zone_name}/background.png`} />);
         this.insertIntoBattlesInProgress(
           userID,
           results.getRandomEnemy.enemies.enemy_id,
@@ -198,8 +199,8 @@ class DatabaseClient {
       console.log('Created new battle', results);
     });
 
-    const battle = <Battle bg={'/static/images/zones/enchanted_forest/background.png'} />;
-    return renderWithTemplate(res, battle);
+    // const battle = <Battle bg={'/static/images/zones/enchanted_forest/background.png'} />;
+    return renderWithTemplate(res, battleDOMElement[0]/*battle*/);
   }
   
   insertIntoBattlesInProgress(userID, enemy, zoneID, equippedWeaponID, characterHealth, enemyHealth, callback) {
@@ -240,7 +241,8 @@ class DatabaseClient {
       callback(null, {
         enemy_id: results.getZoneEnemies[2].enemy_id,
         initial_health: results.getEnemyData[0].initial_health,
-        zone_id: results.getZoneID[0].id
+        zone_id: results.getZoneID[0].id,
+        zone_name: zone
       });
     })
   }
@@ -296,7 +298,91 @@ class DatabaseClient {
           return;
         }
         callback(null, results);
-      })
+    })
+  }
+
+  getBattleInProgress(userID, callback) {
+    db.query(
+      `SELECT * FROM battles_in_progress JOIN zones ON (battles_in_progress.zone_id = zones.id) WHERE character_id=?;`,
+      [userID],
+      function(err, results) {
+        if (err) throw err;
+        callback(err, results[0]);
+      }
+    );
+  }
+
+  getInventoryData(username, res, cb) {
+
+    const itemIDs = [];
+
+    async.auto({
+      getUserID: (callback) => this.getCharacterByUsername(username, callback),
+      getInventoryItems: ['getUserID', (results, callback) => {
+        this.getAllItemsInUserInventory(results.getUserID[0].id, res, callback)
+      }],
+      getItemStats: ['getInventoryItems', (results, callback) => {
+
+        const itemArray = results.getInventoryItems;
+
+        if (itemArray.length) {
+          itemArray.forEach((currentItem) => {
+            itemIDs.push(currentItem.item_id);
+          });
+          this.getItemStats(itemIDs, res, callback)
+        } else {
+          callback(null, results)
+        }
+      }]
+      }, (err, results) => {
+        if (err) {
+          logger.error('Error getting inventory data', {
+            err,
+            results
+          });
+          cb(err, results);
+          return;
+        }
+
+        cb(err, {
+          itemIDs: itemIDs || [],
+          itemData: results.getItemStats || []
+        })
+      }
+
+    );
+
+  }
+
+  getAllItemsInUserInventory(userID, res, callback) {
+    db.query(
+      `SELECT * FROM inventory WHERE character_id=?`,
+      [userID],
+      function(err, results) {
+
+        if (err) {
+          res.sendStatus(500);
+          return;
+        }
+
+        callback(err, results)
+
+      }
+    );
+  }
+
+  getItemStats(itemIDs, res, callback) {
+    db.query(
+      `SELECT * FROM items WHERE id IN (?)`,
+      [itemIDs],
+      function(err, results) {
+        if (err) {
+          res.sendStatus(500);
+          return;
+        }
+        callback(err, results)
+      }
+    );
   }
 
 
@@ -340,7 +426,7 @@ app.use(cookieSession({
 //
 //
 // End initialization
-// Begin declaration of pure logical functions
+// Begin declaration of logical functions
 //
 //
 
@@ -384,8 +470,8 @@ function rollDamageInRange(min, max) {
 
 //
 //
-// End pure logical functions
-// Begin impure query functions
+// End logical functions
+// Begin query functions
 //
 //
 
@@ -399,7 +485,7 @@ function renderWithNavigationShell(res, username, componentToRender, pageTitle, 
     [username],
     function(err, results) {
       if (err) {
-        res.send(500);
+        res.sendStatus(500);
         return;
       }
       
@@ -411,7 +497,7 @@ function renderWithNavigationShell(res, username, componentToRender, pageTitle, 
         [characterQueryResults.id],
         function(err, results) {
           if (err) {
-            res.send(500);
+            res.sendStatus(500);
             return;
           }
           
@@ -437,15 +523,15 @@ function renderWithNavigationShell(res, username, componentToRender, pageTitle, 
 
 // checks for currently in progress battle via user's ID, creates one if there isn't one, and renders the page
 function renderZoneBattle(res, zone, pageTitle, username, originalUrl) {
-  dbQueries.getCharacterByUsername(username, function onGetCharacterForRenderZoneBattle(err, results) {
+  dbQueries.getCharacterByUsername(username, (err, results) => {
     if (err) {
-      res.send(500);
+      res.sendStatus(500);
       return
     }
     const userData = results[0];
-    dbQueries.checkBattlesInProgress(userData.id, function(err, results) {
+    dbQueries.checkBattlesInProgress(userData.id, (err, results) => {
       if (err) {
-        res.send(500);
+        res.sendStatus(500);
         return
       }
         if (results[0] && !results[0].completed) {
@@ -462,30 +548,30 @@ function renderZoneBattle(res, zone, pageTitle, username, originalUrl) {
 // function that calls db querying functions asynchronously, then calls back with the queried values
 // stored as keys in the results object
 function playerAttack(playerID, enemyID, playerWeaponID, playerHealth, enemyHealth, res, urlToReturnTo) {
+
   async.parallel({
     newPlayerHealth: function(callback) {
-      console.log('inside newPlayerHealth');
       rollEnemyMeleeDamage(enemyID, (err, enemyDamage) => {
         callback(err, playerHealth - enemyDamage);
       });
     },
     newEnemyHealth: function(callback) {
-      console.log('inside newEnemyHealth');
       rollPlayerMeleeDamage(playerWeaponID, (err, playerDamage) => {
         callback(err, enemyHealth - playerDamage);
       })
     }
   },
-    function(err, results) {
-      console.log('inside final cb, err: ', err, ' results: ', results);
-      playerAttackCallback(err, {
-        ...results, // assign all queries values to an object, followed by additional required variables
-        playerID: playerID,
-        res: res,
-        urlToReturnTo: urlToReturnTo
-      })
-    }
-  );
+
+  function(err, results) {
+    console.log('inside final cb, results: ', results);
+    playerAttackCallback(err, {
+      ...results, // assign all queried values to an object, followed by additional required variables
+      playerID: playerID,
+      res: res,
+      urlToReturnTo: urlToReturnTo
+    })
+
+  });
 }
 
 // function that querys db for enemy data, then calls back with a random number between
@@ -565,7 +651,7 @@ class Controllers {
       function onLoginQueryFinished(err, results) {
         if (err) {
           console.error('Failed to login player', err);
-          res.send(500);
+          res.sendStatus(500);
           return;
         }
         const userResults = results[0];
@@ -594,7 +680,7 @@ class Controllers {
         [attemptedUsername],
         function (err, results) {
           if (err) {
-            res.send(500);
+            res.sendStatus(500);
             return;
           }
           if (typeof results === 'object' && !results[0]) {
@@ -603,7 +689,7 @@ class Controllers {
           else if (typeof results === 'object' && results[0]) {
         
           }
-          else res.send(500);
+          else res.sendStatus(500);
         }
       )
     }
@@ -649,64 +735,22 @@ app.get('/map', function(req, res) {
 
 app.get('/inventory', function(req, res) {
   const username = req.signedCookies.username;
-  db.query(
-    `SELECT * FROM characters WHERE username=?`,
-    [username],
-    function(err, results) {
-      if (err) {
-        res.sendStatus(500);
-        return;
-      }
-      const userData = results[0];
-      db.query(
-        `SELECT * FROM inventory WHERE character_id=?`,
-        [userData.id],
-        function(err, results) {
-          if (err) {
-            res.sendStatus(500);
-            return;
-          }
-          const itemIDs = [];
-          if (results.length) {
-            results.forEach(function inventoryItemForEachCallback(e) {
-              itemIDs.push(e.item_id);
-            });
-          } else {
-            renderWithNavigationShell(res, username, 'inventory', `${username}'s nice things`, 'template', '',
-              {results: [], itemIDs: []});
-            return;
-          }
-          //console.log('results from query for inventory items: ', itemIDs); TODO: remove
-          db.query(
-            `SELECT * FROM items WHERE id IN (?)`,
-            [itemIDs],
-            function(err, results) {
-              if (err) {
-                res.sendStatus(500);
-                return;
-              }
-              // console.log('Rendering Inventory component with optProps:',
-              //   JSON.stringify({results: results, itemIDs: itemIDs}));
-              if (results && itemIDs && typeof results !== 'undefined' && typeof itemIDs[0] !== 'undefined') {
-                renderWithNavigationShell(res, username, 'inventory', `${username}'s nice things`, 'template', '',
-                  {results: results, itemIDs: itemIDs});
-              } else {
-                renderWithNavigationShell(res, username, 'inventory', `${username}'s nice things`, 'template', '',
-                  {results: [], itemIDs: []});
-              }
-            });
-        });
-    });
-});
 
-// when /zone/enchanted_forest is requested: renders zone battle page
-app.get('/zone/enchanted_forest', function(req, res) {
-  const username = req.signedCookies.username;
-  const zone = 'enchanted forest';
-  const urlEncodedZoneName = (function urlEncodedZoneName(zoneName) {
-    return  zoneName.replace(' ', '_');
-  }(zone)); // IIFE that allows query parameter to be added to request URL; used to redirect the user back to the right zone
-  renderZoneBattle(res, zone, `Kill or be killed, ${username}`, username, urlEncodedZoneName);
+  dbQueries.getInventoryData(username, res, (err, results) => {
+    if (err) {
+      res.sendStatus(500);
+    }
+
+    if (results.itemData.length) {
+      renderWithNavigationShell(res, username, 'inventory', `${username}'s nice things`, 'template', '',
+        {results: results.itemData, itemIDs: results.itemIDs});
+    } else {
+      renderWithNavigationShell(res, username, 'inventory', `${username}'s nice things`, 'template', '',
+        {results: [], itemIDs: []});
+    }
+
+  });
+
 });
 
 // when /shop is requested: redirects to /inventory
@@ -724,58 +768,66 @@ app.get('/logout', function(req, res) {
   res.redirect(302, '/');
 });
 
+// when /zone/enchanted_forest is requested: renders zone battle page
+app.get('/zone/enchanted_forest', function(req, res) {
+  const username = req.signedCookies.username;
+  const zone = 'enchanted forest';
+  const urlEncodedZoneName = zone.replace(' ', '_'); // Used to make a URL to redirect the user back to the right zone
+  renderZoneBattle(res, zone, `Kill or be killed, ${username}`, username, urlEncodedZoneName);
+});
+
+// endpoint to be hit when player clicks 'attack' button in battle
+//
+app.post('/battle_attack_post' , function (req, res) {
+
+  const userData = {
+    username: req.signedCookies.username
+  };
+
+  dbQueries.getCharacterByUsername(userData.username, (err, results) => {
+
+    userData.userID = results[0].id;
+
+    dbQueries.getBattleInProgress(userData.userID, (err, results) => {
+      const { enemy_id, player_weapon_id, player_health, enemy_health } = results;
+      const urlToReturnTo = '/zone/' + results.name.replace(' ', '_');
+      playerAttack(userData.userID, enemy_id, player_weapon_id, player_health, enemy_health, res, urlToReturnTo);
+    })
+
+  });
+
+});
+
+// app.get('/test', function(req, res) {
+//
+//   dbQueries.loginPlayer(
+//     'therealgentoo',
+//     'password',
+//     function(err, results) {
+//       if (err) throw err;
+//
+//       res.send(results[0]);
+//     }
+//   );
+//
+//   // db.query(
+//   //   `SELECT * FROM characters WHERE username = ? AND password = ?`,
+//   //   ['therealgentoo', 'password'],
+//   //   function(err, results) {
+//   //     if (err) throw err;
+//   //
+//   //     res.send(results[0]);
+//   //   }
+//   // );
+// });
+
+
 //TODO: remove, was added because architecture was already set up and I wanted to test this out
 app.get('/text_thing', function(req, res) {
   const username = req.signedCookies.username;
   renderWithNavigationShell(res, username, 'text_thing', 'Text Typing!', 'template', '/static/scripts/textThing.js');
 });
 
-// endpoint to be hit when player clicks 'attack' button in battle
-//
-app.post('/battle_attack_post' , function (req, res) {
-  const username = req.signedCookies.username;
-  db.query(
-    `SELECT * FROM characters WHERE username=?`,
-    [username],
-    function(err, results) {
-      if (err) throw err;
-      const playerID = results[0].id;
-      db.query(
-        `SELECT * FROM battles_in_progress JOIN zones ON (battles_in_progress.zone_id = zones.id) WHERE character_id=?;`,
-        [playerID],
-        function(err, results) {
-          if (err) throw err;
-          const { enemy_id, player_weapon_id, player_health, enemy_health } = results[0];
-          const urlToReturnTo = '/zone/' + results[0].name.replace(' ', '_');
-          playerAttack(playerID, enemy_id, player_weapon_id, player_health, enemy_health, res, urlToReturnTo);
-        }
-      );
-    }
-  )
-});
-
-app.get('/test', function(req, res) {
-
-  dbQueries.loginPlayer(
-    'therealgentoo',
-    'password',
-    function(err, results) {
-      if (err) throw err;
-
-      res.send(results[0]);
-    }
-  );
-
-  // db.query(
-  //   `SELECT * FROM characters WHERE username = ? AND password = ?`,
-  //   ['therealgentoo', 'password'],
-  //   function(err, results) {
-  //     if (err) throw err;
-  //
-  //     res.send(results[0]);
-  //   }
-  // );
-});
 
 // when any page with no response handler is requested: renders 404 text on page
 app.get('/*', function(req, res) {
@@ -787,7 +839,7 @@ app.get('/*', function(req, res) {
 // sets app to listen for requests on port 8001
 app.listen(8001, function appDotListenErrorHandler(err) {
   if (err) {
-    res.send(500);
+    res.sendStatus(500);
     return;
   }
   console.log('Listening at http://localhost:8001/');

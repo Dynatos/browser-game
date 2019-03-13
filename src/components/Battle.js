@@ -9,8 +9,8 @@ export default class Battle extends Component {
     return (
       <div className="battle-highest-parent" style={{backgroundImage: `url(${bg})`}}>
         <div className="battle-alignment" >
-          <img className="battle-player-image" src="../static/images/zones/enchanted_forest/player.png" />
-          <img className="battle-enemy-image" src="../static/images/zones/enchanted_forest/enemy.png" />
+          <img className="battle-player-image" src="../static/images/zones/enchanted_forest/player.png" alt="Player"/>
+          <img className="battle-enemy-image" src="../static/images/zones/enchanted_forest/enemy.png" alt="Enemy"/>
           <form action="/battle_attack_post" method="post">
             <input type="hidden" name="zoneArea" value={originalUrl} />
             <input type="submit" id="battle-submit-attack" className="battle-attack-button" name="Attack"
