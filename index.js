@@ -337,14 +337,14 @@ class DatabaseClient {
     );
   }
 
-  getInventoryData(username, res, cb) {
+  getInventoryData(username, cb) {
 
     const itemIDs = [];
 
     async.auto({
       getUserID: (callback) => this.getCharacterByUsername(username, callback),
       getInventoryItems: ['getUserID', (results, callback) => {
-        this.getAllItemsInUserInventory(results.getUserID[0].id, res, callback)
+        this.getAllItemsInUserInventory(results.getUserID[0].id, callback)
       }],
       getItemStats: ['getInventoryItems', (results, callback) => {
 
@@ -354,7 +354,7 @@ class DatabaseClient {
           itemArray.forEach((currentItem) => {
             itemIDs.push(currentItem.item_id);
           });
-          this.getItemStats(itemIDs, res, callback)
+          this.getItemStats(itemIDs, callback)
         } else {
           callback(null, results)
         }
@@ -379,28 +379,32 @@ class DatabaseClient {
 
   }
 
-  getAllItemsInUserInventory(userID, res, callback) {
+  getAllItemsInUserInventory(userID, callback) {
     this.db.query(
       `SELECT * FROM inventory WHERE character_id=?`,
       [userID],
       (err, results) => {
         if (err) {
-          res.sendStatus(500);
-          return;
+          logger.error("Error getting user's items from inventory", {
+            err,
+            results
+          });
         }
         callback(err, results)
       }
     );
   }
 
-  getItemStats(itemIDs, res, callback) {
+  getItemStats(itemIDs, callback) {
     this.db.query(
       `SELECT * FROM items WHERE id IN (?)`,
       [itemIDs],
       (err, results) => {
         if (err) {
-          res.sendStatus(500);
-          return;
+          logger.error('Error getting item stats', {
+            err,
+            results
+          });
         }
         callback(err, results)
       }
@@ -417,8 +421,6 @@ class DatabaseClient {
             err,
             results
           });
-          callback(err, results);
-          return;
         }
         callback(err, results)
       }
@@ -442,7 +444,7 @@ class DatabaseClient {
     );
   }
 
-  handleBattleComplete(playerID, callback) {
+  setBattleInProgressToCompleted(playerID, callback) {
     this.db.query(
       `UPDATE battles_in_progress SET completed = 1 WHERE character_id = ?`,
       [playerID],
@@ -458,19 +460,39 @@ class DatabaseClient {
     );
   }
 
-  updatePlayerExperience() {
+  handleBattleComplete(playerID, callback) {
+    async.auto({
+      setBattleCompleted: (callback) => this.setBattleInProgressToCompleted(playerID, callback),
+      getCharacterData: (callback) => this.getCharacterDataByID(playerID, callback),
+      updateExperienceAndGold: ['getCharacterData', (results, callback) => this.updatePlayerExperienceAndGold(playerID, callback)],
+    })
+  }
+
+  updatePlayerExperienceAndGold(playerID, callback) {
+    this.db.query(
+      `UPDATE character_data SET experience = ? AND gold = ? WHERE character_id = ?`,
+      [playerID],
+      (err) => {
+        if (err) {
+          logger.error('Error updating battle in progress while trying to mark as completed', {
+            err
+          });
+          return;
+        }
+        callback(err);
+      }
+    );
+  }
+
+  updatePlayerGold(playerID, callback) {
 
   }
 
-  updatePlayerGold() {
+  rollItemDropForSuccessfulBattle(enemyID, callback) {
 
   }
 
-  rollPlayerItemDrop() {
-
-  }
-
-  addItemToInventory() {
+  addItemToInventory(playerID, itemID, callback) {
 
   }
 
@@ -619,7 +641,7 @@ function renderZoneBattle(res, zone, pageTitle, username, originalUrl) {
 
 // function that calls db querying functions asynchronously, then calls back with the queried values
 // stored as keys in the results object
-function handlePlayerAttack(playerID, enemyID, playerWeaponID, playerHealth, enemyHealth, res, urlToReturnTo) {
+function handlePlayerAttack(playerID, enemyID, playerWeaponID, playerHealth, enemyHealth, cb) {
 
   async.parallel({
     newPlayerHealth: function(callback) {
@@ -644,11 +666,9 @@ function handlePlayerAttack(playerID, enemyID, playerWeaponID, playerHealth, ene
     }
     dbQueries.updateBattleInProgressHealthValues({
       ...results, // assign all queried values to an object, followed by additional required variables
-      playerID: playerID,
-      res: res,
-      urlToReturnTo: urlToReturnTo
+      playerID: playerID
     }, (newHealthValueObject) => {
-      const { newPlayerHealth, newEnemyHealth, playerID, urlToReturnTo } = newHealthValueObject;
+      const { newPlayerHealth, newEnemyHealth, playerID } = newHealthValueObject;
 
       if (newPlayerHealth <= 0 || newEnemyHealth <= 0) {
         dbQueries.handleBattleComplete(playerID, (err) => {
@@ -656,10 +676,8 @@ function handlePlayerAttack(playerID, enemyID, playerWeaponID, playerHealth, ene
             logger.error('Error updating battle in progress while trying to mark as completed', {
               err
             });
-            res.sendStatus(500);
-          } else {
-            res.redirect(urlToReturnTo)
           }
+          cb(err);
 
         })
       }
@@ -815,7 +833,7 @@ app.get('/map', function(req, res) {
 app.get('/inventory', function(req, res) {
   const username = req.signedCookies.username;
 
-  dbQueries.getInventoryData(username, res, (err, results) => {
+  dbQueries.getInventoryData(username, (err, results) => {
     if (err) {
       res.sendStatus(500);
     }
@@ -870,7 +888,16 @@ app.post('/battle_attack_post' , function(req, res) {
     dbQueries.getBattleInProgress(userData.userID, (err, results) => {
       const { enemy_id, player_weapon_id, player_health, enemy_health } = results;
       const urlToReturnTo = '/zone/' + results.name.replace(' ', '_');
-      handlePlayerAttack(userData.userID, enemy_id, player_weapon_id, player_health, enemy_health, res, urlToReturnTo);
+      handlePlayerAttack(userData.userID, enemy_id, player_weapon_id, player_health, enemy_health, (err) => {
+        if (err) {
+          logger.error('Error getting zone name', {
+            err
+          });
+          res.sendStatus(500);
+          return
+        }
+        res.redirect(urlToReturnTo)
+      });
     })
 
   });
