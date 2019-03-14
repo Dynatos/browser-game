@@ -70,6 +70,25 @@ db.connect(function databaseConnectErrorHandler(err) { // finalizes connection t
   }
 });
 
+
+// initialize logger variable with winston for future injection
+const logger = winston.createLogger({
+  level: 'info',
+  format: winston.format.json(),
+  transport: [
+    new winston.transports.File({ filename: 'error.log', level: 'error' }),
+    new winston.transports.File({ filename: 'combined.log' })
+  ]
+});
+
+// TODO: make this have environments
+if (true /*process.env.NODE_ENV !== 'production'*/) {
+  logger.add(new winston.transports.Console({
+    format: winston.format.simple()
+  }));
+}
+
+
 // database class for initiating db functions and attaching them to any number of dbs
 // to be called with instances of db and logger
 class DatabaseClient {
@@ -175,17 +194,17 @@ class DatabaseClient {
     async.auto({
       getEquippedWeapon: (callback) => this.getEquippedWeaponByCharacterID(userID, callback),
       getCharacterData: (callback) => this.getCharacterDataByID(userID, callback),
-      getRandomEnemy: (callback) => this.getRandomEnemyByZoneName(zone, (err, enemies, randNum, randEnemy, zoneID) => {
-        callback(err, {enemies, randNum, randEnemy, zoneID});
-      }),
+      getRandomEnemy: (callback) => {this.getRandomEnemyByZoneName(zone, (err, enemyDataObject) => {
+        callback(err, enemyDataObject);
+      })},
       setBattleInProgress: ['getEquippedWeapon', 'getCharacterData', 'getRandomEnemy', (results, callback) => {
         this.insertIntoBattlesInProgress(
           userID,
-          results.getRandomEnemy.enemies.enemy_id,
-          results.getRandomEnemy.enemies.zone_id,
+          results.getRandomEnemy.enemy_id,
+          results.getRandomEnemy.zone_id,
           results.getEquippedWeapon[0].item_id,
           getHealth(getLevel(results.getCharacterData[0].experience)),
-          results.getRandomEnemy.enemies.initial_health,
+          results.getRandomEnemy.initial_health,
           callback
         );
       }]
@@ -196,7 +215,7 @@ class DatabaseClient {
         return;
       }
 
-      const battleBackgroundImageURL = `/static/images/zones/${results.getRandomEnemy.enemies.zone_name.replace(' ', '_')}/background.png`;
+      const battleBackgroundImageURL = `/static/images/zones/${results.getRandomEnemy.zone_name.replace(' ', '_')}/background.png`;
       const battle = <Battle bg={battleBackgroundImageURL} />;
       return renderWithTemplate(res, battle);
     });
@@ -302,7 +321,8 @@ class DatabaseClient {
 
   getBattleInProgress(userID, callback) {
     this.db.query(
-      `SELECT * FROM battles_in_progress JOIN zones ON (battles_in_progress.zone_id = zones.id) WHERE character_id=?;`,
+      `SELECT * FROM battles_in_progress JOIN zones ON (battles_in_progress.zone_id = zones.id) WHERE character_id = ? 
+      AND completed = 0;`,
       [userID],
       (err, results) => {
         if (err) {
@@ -364,14 +384,11 @@ class DatabaseClient {
       `SELECT * FROM inventory WHERE character_id=?`,
       [userID],
       (err, results) => {
-
         if (err) {
           res.sendStatus(500);
           return;
         }
-
         callback(err, results)
-
       }
     );
   }
@@ -408,8 +425,8 @@ class DatabaseClient {
     )
   }
 
-  updateBattleInProgressHealthValues(results) {
-    const { newPlayerHealth, newEnemyHealth, playerID, res, urlToReturnTo } = results;
+  updateBattleInProgressHealthValues(results, callback) {
+    const { newPlayerHealth, newEnemyHealth, playerID, /*res, urlToReturnTo*/ } = results;
     this.db.query(
       `UPDATE battles_in_progress SET player_health = ?, enemy_health = ? WHERE character_id = ?`,
       [newPlayerHealth, newEnemyHealth, playerID],
@@ -420,30 +437,44 @@ class DatabaseClient {
           });
           return;
         }
-        res.redirect(urlToReturnTo); // redirects player to current zone, which will re-render the battle with new state
-        // TODO could be heavily optimized to hot-load new state with json endpoints, but that drastically changes the structure of the app
+        callback(results);
       }
     );
   }
 
+  handleBattleComplete(playerID, callback) {
+    this.db.query(
+      `UPDATE battles_in_progress SET completed = 1 WHERE character_id = ?`,
+      [playerID],
+      (err) => {
+        if (err) {
+          logger.error('Error updating battle in progress while trying to mark as completed', {
+            err
+          });
+          return;
+        }
+        callback(err);
+      }
+    );
+  }
 
-}
+  updatePlayerExperience() {
 
-// initialize logger variable with winston for future injection
-const logger = winston.createLogger({
-  level: 'info',
-  format: winston.format.json(),
-  transport: [
-    new winston.transports.File({ filename: 'error.log', level: 'error' }),
-    new winston.transports.File({ filename: 'combined.log' })
-  ]
-});
+  }
 
-// TODO: make this have environments
-if (true /*process.env.NODE_ENV !== 'production'*/) {
-  logger.add(new winston.transports.Console({
-    format: winston.format.simple()
-  }));
+  updatePlayerGold() {
+
+  }
+
+  rollPlayerItemDrop() {
+
+  }
+
+  addItemToInventory() {
+
+  }
+
+
 }
 
 
@@ -616,6 +647,26 @@ function handlePlayerAttack(playerID, enemyID, playerWeaponID, playerHealth, ene
       playerID: playerID,
       res: res,
       urlToReturnTo: urlToReturnTo
+    }, (newHealthValueObject) => {
+      const { newPlayerHealth, newEnemyHealth, playerID, urlToReturnTo } = newHealthValueObject;
+
+      if (newPlayerHealth <= 0 || newEnemyHealth <= 0) {
+        dbQueries.handleBattleComplete(playerID, (err) => {
+          if (err) {
+            logger.error('Error updating battle in progress while trying to mark as completed', {
+              err
+            });
+            res.sendStatus(500);
+          } else {
+            res.redirect(urlToReturnTo)
+          }
+
+        })
+      }
+
+      // moved to above callback, final placement uncertain
+      //res.redirect(urlToReturnTo); // redirects player to current zone, which will re-render the battle with new state
+      // TODO could be heavily optimized to hot-load new state with json endpoints, but that drastically changes the structure of the app
     })
 
   });
