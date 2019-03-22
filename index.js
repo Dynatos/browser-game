@@ -15,10 +15,10 @@ const chokidar = (function() {
   // if (!production) {
     const chokidar = require('chokidar');
     const watcher = chokidar.watch('./src', null);
-    watcher.on('ready', function() {
-      watcher.on('all', function() {
+    watcher.on('ready', () => {
+      watcher.on('all', () => {
         console.log('Clearing /app/ module cache from server');
-        Object.keys(require.cache).forEach(function(id) {
+        Object.keys(require.cache).forEach((id) => {
           if (/[\/\\]app[\/\\]/.test(id)) delete require.cache[id]
         })
       })
@@ -103,12 +103,12 @@ class DatabaseClient {
       [username],
       (err, results) => {
         if (err) {
-          logger.error('Error fetching from characters using Username', {
+          logger.error('Error getting character login info with username', {
             err,
             results
           });
           callback(err, results);
-          return;
+          return
         }
         callback(null, results);
       }
@@ -121,12 +121,12 @@ class DatabaseClient {
       [id],
       (err, results) => {
         if (err) {
-          logger.error('Error fetching from character_data using Character_ID', {
+          logger.error('Error getting character_data using character_id', {
             err,
             results
           });
           callback(err, results);
-          return;
+          return
         }
         callback(null, results);
       }
@@ -139,12 +139,12 @@ class DatabaseClient {
       [characterID],
       (err, results) => {
         if (err) {
-          logger.error('Error fetching currently equipped weapon from inventory using Character_ID', {
+          logger.error('Error getting currently equipped weapon from inventory using character_id', {
             err,
             results
           });
           callback(err, results);
-          return;
+          return
         }
         callback(null, results);
       }
@@ -162,7 +162,7 @@ class DatabaseClient {
             results
           });
           callback(err, results);
-          return;
+          return
         }
         callback(null, results);
       }
@@ -180,7 +180,7 @@ class DatabaseClient {
             results
           });
           callback(err, results);
-          return;
+          return
         }
         callback(null, results);
       }
@@ -189,15 +189,15 @@ class DatabaseClient {
   
   // TODO: extract data fetching from component rendering, add handling for errors
   renderNewBattle(res, zone, userID) {
-    const logger = this.logger;
-
+    console.log('rendering new battle');
     async.auto({
       getEquippedWeapon: (callback) => this.getEquippedWeaponByCharacterID(userID, callback),
       getCharacterData: (callback) => this.getCharacterDataByID(userID, callback),
       getRandomEnemy: (callback) => {this.getRandomEnemyByZoneName(zone, (err, enemyDataObject) => {
         callback(err, enemyDataObject);
       })},
-      setBattleInProgress: ['getEquippedWeapon', 'getCharacterData', 'getRandomEnemy', (results, callback) => {
+      deleteCompletedBattle: (callback) => {this.deleteCompletedBattleFromBattlesInProgress(userID, callback)},
+      setBattleInProgress: ['getEquippedWeapon', 'getCharacterData', 'getRandomEnemy', 'deleteCompletedBattle', (results, callback) => {
         this.insertIntoBattlesInProgress(
           userID,
           results.getRandomEnemy.enemy_id,
@@ -212,7 +212,7 @@ class DatabaseClient {
       if (err) {
         logger.error('Error rendering new battle', err);
         res.sendStatus(500);
-        return;
+        return
       }
 
       const battleBackgroundImageURL = `/static/images/zones/${results.getRandomEnemy.zone_name.replace(' ', '_')}/background.png`;
@@ -233,9 +233,24 @@ class DatabaseClient {
             results
           });
           callback(err, results);
-          return;
+          return
         }
         callback(null, results);
+      }
+    )
+  }
+
+  deleteCompletedBattleFromBattlesInProgress(playerID, callback) {
+    this.db.query(
+      `DELETE FROM battles_in_progress WHERE character_id = ?`,
+      [playerID],
+      (err) => {
+        if (err) {
+          logger.error('Error deleting completed battle from battles_in_progress', {
+            err
+          });
+        }
+        callback(err);
       }
     )
   }
@@ -245,16 +260,16 @@ class DatabaseClient {
 
     async.auto({
       getZoneID: (callback) => this.getZoneID(zone, callback),
-      getZoneEnemies: ['getZoneID', (results, callback) => this.getZoneEnemies(results.getZoneID[0], callback)],
-      getEnemyData: ['getZoneEnemies', (results, callback) => this.getEnemyData(results.getZoneEnemies[2], callback)]
+      getZoneEnemies: ['getZoneID', (results, callback) => this.getZoneEnemies(results.getZoneID[0].id, callback)],
+      getEnemyData: ['getZoneEnemies', (results, callback) => this.getEnemyData(results.getZoneEnemies[2].enemy_id, callback)]
     }, (err, results) => {
       if (err) {
-        logger.error('Error inserting into battles_in_progress', {
+        logger.error('Error getting random enemy using zone name', {
           err,
           results
         });
         callback(err, results);
-        return;
+        return
       }
       callback(null, {
         enemy_id: results.getZoneEnemies[2].enemy_id,
@@ -271,21 +286,21 @@ class DatabaseClient {
       [zone],
       (err, results) => {
         if (err) {
-          logger.error('Error inserting into battles_in_progress', {
+          logger.error('Error getting zone id from zone name', {
             err,
             results
           });
           callback(err, results);
-          return;
+          return
         }
         callback(null, results);
     })
   }
 
-  getZoneEnemies(zoneData, callback) {
+  getZoneEnemies(zoneID, callback) {
     this.db.query(
       `SELECT * FROM zone_enemies WHERE zone_id=?`,
-      [zoneData.id],
+      [zoneID],
       (err, results) => {
         if (err) {
           logger.error('Error getting zone_enemies from database, error message:', {
@@ -293,27 +308,27 @@ class DatabaseClient {
             results
           });
           callback(err, results);
-          return;
+          return
         }
         const enemies = results;
         const randNum = Math.random();
         const randEnemy = enemies[Math.floor(randNum * enemies.length)];
-        callback(null, enemies, randNum, randEnemy, zoneData.id);
+        callback(null, enemies, randNum, randEnemy, zoneID);
       })
   }
 
-  getEnemyData(randEnemy, callback) {
+  getEnemyData(enemyID, callback) {
     this.db.query(
       `SELECT * FROM enemies WHERE id=?`,
-      [randEnemy.enemy_id],
+      [enemyID],
       (err, results) => {
         if (err) {
-          logger.error('Error inserting into battles_in_progress', {
+          logger.error('Error getting enemy data from enemy ID', {
             err,
             results
           });
           callback(err, results);
-          return;
+          return
         }
         callback(null, results);
     })
@@ -330,7 +345,7 @@ class DatabaseClient {
             err,
             results
           });
-          return;
+          return
         }
         callback(err, results[0]);
       }
@@ -366,7 +381,7 @@ class DatabaseClient {
             results
           });
           cb(err, results);
-          return;
+          return
         }
 
         cb(err, {
@@ -437,7 +452,7 @@ class DatabaseClient {
           logger.error('Error updating battles in progress during player attack:', {
             err
           });
-          return;
+          return
         }
         callback(results);
       }
@@ -453,7 +468,7 @@ class DatabaseClient {
           logger.error('Error updating battle in progress while trying to mark as completed', {
             err
           });
-          return;
+          return
         }
         callback(err);
       }
@@ -463,37 +478,89 @@ class DatabaseClient {
   handleBattleComplete(playerID, callback) {
     async.auto({
       setBattleCompleted: (callback) => this.setBattleInProgressToCompleted(playerID, callback),
+      getBattleInProgress: (callback) => this.getBattleInProgress(playerID, callback),
       getCharacterData: (callback) => this.getCharacterDataByID(playerID, callback),
-      updateExperienceAndGold: ['getCharacterData', (results, callback) => this.updatePlayerExperienceAndGold(playerID, callback)],
+      getEnemyData: ['getBattleInProgress', (callback) => this.getEnemyData(results.getBattleInProgress[0].enemy_id, callback)],
+      updateExperienceAndGold: ['getBattleInProgress', 'getCharacterData', 'getEnemyData', (results, callback) => {
+        const enemyStartingHealth = results.getEnemyData[0].initial_health;
+        const zoneID = results.getBattleInProgress[0].zone_id;
+        const newExperience = results.getCharacterData[0].experience + rollExperienceReward(enemyStartingHealth, zoneID);
+        const newGold = results.getCharacterData[0].gold + rollGoldReward(enemyStartingHealth, zoneID);
+        this.updatePlayerExperienceAndGold(newExperience, newGold, playerID, callback);
+      }],
+      rollItemDrop: ['getEnemyData', (results, callback) => {
+        this.rollAndHandleItemDropForSuccessfulBattle(playerID, results.getBattleInProgress[0].enemy_id, callback)
+      }],
+
+    }, (err, results) => {
+      if (err) {
+        logger.error('Error running async.auto calls inside dbQueries.handleBattleComplete', {
+          err,
+          results
+        });
+        callback(err);
+        return
+      }
+      callback(err, results);
     })
   }
 
-  updatePlayerExperienceAndGold(playerID, callback) {
+  updatePlayerExperienceAndGold(newExperience, newGold, playerID, callback) {
     this.db.query(
       `UPDATE character_data SET experience = ? AND gold = ? WHERE character_id = ?`,
-      [playerID],
+      [newExperience, newGold, playerID],
       (err) => {
         if (err) {
           logger.error('Error updating battle in progress while trying to mark as completed', {
             err
           });
-          return;
+          return
         }
         callback(err);
       }
     );
   }
 
-  updatePlayerGold(playerID, callback) {
+  rollAndHandleItemDropForSuccessfulBattle(playerID, enemyID, callback) {
+    this.db.query(
+      `SELECT * FROM drop_association AS da JOIN drop_data ON da.drop_id = drop_data.drop_id WHERE enemy_id = ?;`,
+      [enemyID],
+      (err, results) => {
+        if (err) {
+          logger.error('Error rolling item drop after successful battle', {
+            err,
+            results
+          });
+          return
+        }
+        const randomItem = rollRandomItem(results);
+        console.log('rolled random item, results either itemID or null', randomItem);
+        if (randomItem) {
+          this.addItemToInventory(playerID, randomItem, callback);
+          return
+        }
+        callback(err)
+      }
+    );
 
-  }
-
-  rollItemDropForSuccessfulBattle(enemyID, callback) {
 
   }
 
   addItemToInventory(playerID, itemID, callback) {
-
+    this.db.query(
+      `INSERT INTO inventory (character_id, item_id) VALUES (?, ?)`,
+      [playerID, itemID],
+      (err) => {
+        if (err) {
+          logger.error(`Error inserting item drop from successful battle into inventory, 
+          playerID:${playerID}, itemID: ${itemID} `, {
+            err
+          });
+          return
+        }
+        callback(err)
+      }
+    )
   }
 
 
@@ -536,13 +603,15 @@ function renderWithTemplate (res, componentToRender, title = 'JLand', templateTo
 
 // calculates player level from experience value, necessary because storing both exp and level could cause inconsistency
 function getLevel(exp) {
-  let returnNum;
-  let exper = exp;
-  for (let i = 1; exper >= experience[i]; i++) {
-    returnNum = i;
-    exper -= experience[i];
+  let playerLevel;
+  let remainingExp = exp;
+  //experience is an array of values where experience[index] == amount of experience required to reach the next level/index
+
+  for (let i = 1; remainingExp >= experience[i]; i++) {
+    playerLevel = i;
+    remainingExp -= experience[i];
   }
-  return returnNum;
+  return playerLevel;
 }
 
 // calculate health value based on user's level
@@ -556,9 +625,38 @@ function rollDamageInRange(min, max) {
   const damageRange = Math.abs(max - min);
   // number of possible damage values. eg: range between 2 and 5 damage = 4 possible values [2, 3, 4, 5]
   
-  return min + Math.round((Math.random() * damageRange));
-  // get a random value between 0 and 1, then multiply by range to get a value between 0 and damageRange,
+  return Math.round((Math.random() * damageRange)) + min;
+  // get a random value between 0 and 1 then multiply it by the range to get a value between 0 and damageRange,
   // then round to a whole num and add min to get a damage value between range of min and max (inclusive)
+}
+
+function rollExperienceReward(enemyStartingHealth, zoneID) {
+  return Math.round((enemyStartingHealth / 6) * (zoneID * 1.25))
+}
+
+// rolls a static value based on enemy health
+// then uses Math.random() for a 1/5 chance of returning 1.5x that base value, else it returns the base value
+function rollGoldReward(enemyStartingHealth, zoneID) {
+  const baseGold = Math.round((enemyStartingHealth / 6) * (zoneID * 1.5));
+  return Math.random() * 5 < 1 ? Math.round(baseGold * 1.5) : baseGold;
+}
+
+//rolls are based on x/100 drop chance, x being defined in the database on a per-enemy basis
+//returns either an itemID or null
+function rollRandomItem(arrayOfItems) {
+
+  console.log('rolling random item from results:', arrayOfItems);
+
+  const rollLookup = [];
+
+  arrayOfItems.map(item => {
+    for ( let i = 0; i < item.drop_chance; i++) {
+      rollLookup.push(item.item_id);
+    }
+  });
+
+  const roll = Math.floor(Math.random() * 100);
+  return rollLookup[roll] ? rollLookup[roll] : null
 }
 
 
@@ -577,10 +675,10 @@ function renderWithNavigationShell(res, username, componentToRender, pageTitle, 
   db.query(
     `SELECT * FROM characters WHERE username = ?`,
     [username],
-    function(err, results) {
+    (err, results) => {
       if (err) {
         res.sendStatus(500);
-        return;
+        return
       }
       
       const characterQueryResults = results[0];
@@ -589,10 +687,10 @@ function renderWithNavigationShell(res, username, componentToRender, pageTitle, 
       db.query(
         `SELECT * FROM character_data WHERE id = ?`,
         [characterQueryResults.id],
-        function(err, results) {
+        (err, results) => {
           if (err) {
             res.sendStatus(500);
-            return;
+            return
           }
           
           const characterDataQueryResults = results[0];
@@ -624,15 +722,19 @@ function renderZoneBattle(res, zone, pageTitle, username, originalUrl) {
     }
     const userData = results[0];
     dbQueries.checkBattlesInProgress(userData.id, (err, results) => {
+      console.log('checked for battle in progress')
       if (err) {
+        console.log('err')
         res.sendStatus(500);
         return
       }
       if (results[0] && !results[0].completed) {
+        console.log('found battle')
         const battle = <Battle bg={`/static/images/zones/${originalUrl}/background.png`} originalUrl={originalUrl} />;
         return renderWithTemplate(res, battle, pageTitle);
       }
-      if (!results[0]) {
+      if (!results[0] || results[0].completed) {
+        console.log('didnt find battle')
         return dbQueries.renderNewBattle(res, zone, userData.id);
       }
     })
@@ -644,25 +746,25 @@ function renderZoneBattle(res, zone, pageTitle, username, originalUrl) {
 function handlePlayerAttack(playerID, enemyID, playerWeaponID, playerHealth, enemyHealth, cb) {
 
   async.parallel({
-    newPlayerHealth: function(callback) {
+    newPlayerHealth: (callback) => {
       rollEnemyMeleeDamage(enemyID, (err, enemyDamage) => {
         callback(err, playerHealth - enemyDamage);
       });
     },
-    newEnemyHealth: function(callback) {
+    newEnemyHealth: (callback) => {
       rollPlayerMeleeDamage(playerWeaponID, (err, playerDamage) => {
         callback(err, enemyHealth - playerDamage);
       })
     }
   },
 
-  function(err, results) {
+  (err, results) => {
     if (err) {
       logger.error('Error handling player attack:', {
         err,
         results
       });
-      return;
+      return
     }
     dbQueries.updateBattleInProgressHealthValues({
       ...results, // assign all queried values to an object, followed by additional required variables
@@ -696,10 +798,10 @@ function rollEnemyMeleeDamage(enemyID, cb) {
   db.query(
     `SELECT * FROM enemies WHERE id = ?`,
     [enemyID],
-    function(err, results) {
+    (err, results) => {
       if (err) {
         cb(err);
-        return;
+        return
       }
       cb(null, rollDamageInRange(results[0].min_melee_damage, results[0].max_melee_damage));
     }
@@ -712,10 +814,10 @@ function rollPlayerMeleeDamage(playerWeaponID, cb) {
   db.query(
     `SELECT * FROM items WHERE id = ?`,
     [playerWeaponID],
-    function(err, results) {
+    (err, results) => {
       if (err) {
         cb(err);
-        return;
+        return
       }
       cb(null, rollDamageInRange(results[0].min_melee_damage, results[0].max_melee_damage));
     }
@@ -749,12 +851,12 @@ class Controllers {
         if (err) {
           console.error('Failed to login player', err);
           res.sendStatus(500);
-          return;
+          return
         }
         const userResults = results[0];
         if (!userResults) {
           renderWithTemplate(res, failedLoginPage);
-          return;
+          return
         }
         if (passwordFromLogin && userResults.password === passwordFromLogin) {
           res.cookie('username', `${userResults.username}`, { signed: true, path: '/' });
@@ -778,7 +880,7 @@ class Controllers {
         function (err, results) {
           if (err) {
             res.sendStatus(500);
-            return;
+            return
           }
           if (typeof results === 'object' && !results[0]) {
         
@@ -805,7 +907,7 @@ const controllers = new Controllers(db, logger);
 
 
 // when the base URL is requested: renders login page
-app.get('/', function(req, res) {
+app.get('/', (req, res) => {
   const loginPage = <LoginPage />;
   renderWithTemplate(res, loginPage);
 });
@@ -815,7 +917,7 @@ app.get('/', function(req, res) {
 app.post('/login', controllers.createLoginController());
 
 // when /signup is requested: renders signup page
-app.get('/signup', function(req, res) {
+app.get('/signup', (req, res) => {
   renderWithTemplate(res, <SignupPage />, 'Sign up for JLand', 'template', '/static/scripts/signup.js');
 });
 
@@ -825,12 +927,12 @@ app.get('/signup', function(req, res) {
 app.post('/signup/post', controllers.createSignupPostController());
 
 // when /map is requested: renders map page
-app.get('/map', function(req, res) {
+app.get('/map', (req, res) => {
   const username = req.signedCookies.username;
   renderWithNavigationShell(res, username, 'map', `Onward into battle, ${username}`);
 });
 
-app.get('/inventory', function(req, res) {
+app.get('/inventory', (req, res) => {
   const username = req.signedCookies.username;
 
   dbQueries.getInventoryData(username, (err, results) => {
@@ -852,21 +954,21 @@ app.get('/inventory', function(req, res) {
 
 // when /shop is requested: redirects to /inventory
 // TODO: add shop page
-app.get('/shop', function(req, res) {
+app.get('/shop', (req, res) => {
   const username = req.signedCookies.username;
   res.redirect(302, '/inventory');
 });
 
 // when /logout is requested: overwrites username cookie to prevent malicious requests, deletes current session,
 // redirects to homepage
-app.get('/logout', function(req, res) {
+app.get('/logout', (req, res) => {
   res.cookie('username', null);
   delete res.session;
   res.redirect(302, '/');
 });
 
 // when /zone/enchanted_forest is requested: renders zone battle page
-app.get('/zone/enchanted_forest', function(req, res) {
+app.get('/zone/enchanted_forest', (req, res) => {
   const username = req.signedCookies.username;
   const zone = 'enchanted forest';
   const urlEncodedZoneName = zone.replace(' ', '_'); // Used to make a URL to redirect the user back to the right zone
@@ -875,7 +977,7 @@ app.get('/zone/enchanted_forest', function(req, res) {
 
 // endpoint to be hit when player clicks 'attack' button in battle
 //
-app.post('/battle_attack_post' , function(req, res) {
+app.post('/battle_attack_post' , (req, res) => {
 
   const userData = {
     username: req.signedCookies.username
@@ -904,39 +1006,16 @@ app.post('/battle_attack_post' , function(req, res) {
 
 });
 
-// app.get('/test', function(req, res) {
-//
-//   dbQueries.loginPlayer(
-//     'therealgentoo',
-//     'password',
-//     function(err, results) {
-//       if (err) throw err;
-//
-//       res.send(results[0]);
-//     }
-//   );
-//
-//   // db.query(
-//   //   `SELECT * FROM characters WHERE username = ? AND password = ?`,
-//   //   ['therealgentoo', 'password'],
-//   //   function(err, results) {
-//   //     if (err) throw err;
-//   //
-//   //     res.send(results[0]);
-//   //   }
-//   // );
-// });
-
 
 //TODO: remove, was added because architecture was already set up and I wanted to test this out
-app.get('/text_thing', function(req, res) {
+app.get('/text_thing', (req, res) => {
   const username = req.signedCookies.username;
   renderWithNavigationShell(res, username, 'text_thing', 'Text Typing!', 'template', '/static/scripts/textThing.js');
 });
 
 
 // when any page with no response handler is requested: renders 404 text on page
-app.get('/*', function(req, res) {
+app.get('/*', (req, res) => {
   res.sendStatus(404);
 });
 
@@ -946,7 +1025,7 @@ app.get('/*', function(req, res) {
 app.listen(8001, function appDotListenErrorHandler(err) {
   if (err) {
     res.sendStatus(500);
-    return;
+    return
   }
   console.log('Listening at http://localhost:8001/');
 });

@@ -298,4 +298,4 @@ INSERT INTO experience_levels (level, experience) VALUES (96, 38161093);
 INSERT INTO experience_levels (level, experience) VALUES (97, 41641219);
 INSERT INTO experience_levels (level, experience) VALUES (98, 45393278);
 INSERT INTO experience_levels (level, experience) VALUES (99, 49433931);
-INSERT INTO experience_levels (level, experience) VALUES (100, 53780426)
+INSERT INTO experience_levels (level, experience) VALUES (100, 53780426);
