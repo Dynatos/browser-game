@@ -188,8 +188,7 @@ class DatabaseClient {
   }
   
   // TODO: extract data fetching from component rendering, add handling for errors
-  renderNewBattle(res, zone, userID) {
-    console.log('rendering new battle');
+  renderNewBattle(zone, userID, cb) {
     async.auto({
       getEquippedWeapon: (callback) => this.getEquippedWeaponByCharacterID(userID, callback),
       getCharacterData: (callback) => this.getCharacterDataByID(userID, callback),
@@ -211,13 +210,13 @@ class DatabaseClient {
     }, (err, results) => {
       if (err) {
         logger.error('Error rendering new battle', err);
-        res.sendStatus(500);
+        cb(err);
         return
       }
 
       const battleBackgroundImageURL = `/static/images/zones/${results.getRandomEnemy.zone_name.replace(' ', '_')}/background.png`;
       const battle = <Battle bg={battleBackgroundImageURL} />;
-      return renderWithTemplate(res, battle);
+      cb(null, battle);
     });
   }
   
@@ -249,15 +248,15 @@ class DatabaseClient {
           logger.error('Error deleting completed battle from battles_in_progress', {
             err
           });
+          callback(err);
+          return
         }
-        callback(err);
+        callback(null);
       }
     )
   }
 
   getRandomEnemyByZoneName(zone, callback) {
-    logger.info('getting random enemy by zone', {zone});
-
     async.auto({
       getZoneID: (callback) => this.getZoneID(zone, callback),
       getZoneEnemies: ['getZoneID', (results, callback) => this.getZoneEnemies(results.getZoneID[0].id, callback)],
@@ -336,8 +335,7 @@ class DatabaseClient {
 
   getBattleInProgress(userID, callback) {
     this.db.query(
-      `SELECT * FROM battles_in_progress JOIN zones ON (battles_in_progress.zone_id = zones.id) WHERE character_id = ? 
-      AND completed = 0;`,
+      `SELECT * FROM battles_in_progress JOIN zones ON (battles_in_progress.zone_id = zones.id) WHERE character_id = ?;`,
       [userID],
       (err, results) => {
         if (err) {
@@ -345,9 +343,10 @@ class DatabaseClient {
             err,
             results
           });
+          callback(err);
           return
         }
-        callback(err, results[0]);
+        callback(null, results);
       }
     );
   }
@@ -384,7 +383,7 @@ class DatabaseClient {
           return
         }
 
-        cb(err, {
+        cb(null, {
           itemIDs: itemIDs || [],
           itemData: results.getItemStats || []
         })
@@ -404,8 +403,10 @@ class DatabaseClient {
             err,
             results
           });
+          callback(err);
+          return
         }
-        callback(err, results)
+        callback(null, results)
       }
     );
   }
@@ -420,8 +421,10 @@ class DatabaseClient {
             err,
             results
           });
+          callback(err);
+          return
         }
-        callback(err, results)
+        callback(null, results)
       }
     );
   }
@@ -436,14 +439,16 @@ class DatabaseClient {
             err,
             results
           });
+          callback(err);
+          return
         }
-        callback(err, results)
+        callback(null, results)
       }
     )
   }
 
-  updateBattleInProgressHealthValues(results, callback) {
-    const { newPlayerHealth, newEnemyHealth, playerID, /*res, urlToReturnTo*/ } = results;
+  updateBattleInProgressHealthValues(newValueObject, callback) {
+    const { newPlayerHealth, newEnemyHealth, playerID } = newValueObject;
     this.db.query(
       `UPDATE battles_in_progress SET player_health = ?, enemy_health = ? WHERE character_id = ?`,
       [newPlayerHealth, newEnemyHealth, playerID],
@@ -452,9 +457,10 @@ class DatabaseClient {
           logger.error('Error updating battles in progress during player attack:', {
             err
           });
+          callback(err);
           return
         }
-        callback(results);
+        callback(null, newValueObject);
       }
     );
   }
@@ -468,9 +474,10 @@ class DatabaseClient {
           logger.error('Error updating battle in progress while trying to mark as completed', {
             err
           });
+          callback(err);
           return
         }
-        callback(err);
+        callback(null);
       }
     );
   }
@@ -480,7 +487,7 @@ class DatabaseClient {
       setBattleCompleted: (callback) => this.setBattleInProgressToCompleted(playerID, callback),
       getBattleInProgress: (callback) => this.getBattleInProgress(playerID, callback),
       getCharacterData: (callback) => this.getCharacterDataByID(playerID, callback),
-      getEnemyData: ['getBattleInProgress', (callback) => this.getEnemyData(results.getBattleInProgress[0].enemy_id, callback)],
+      getEnemyData: ['getBattleInProgress', (results, callback) => this.getEnemyData(results.getBattleInProgress[0].enemy_id, callback)],
       updateExperienceAndGold: ['getBattleInProgress', 'getCharacterData', 'getEnemyData', (results, callback) => {
         const enemyStartingHealth = results.getEnemyData[0].initial_health;
         const zoneID = results.getBattleInProgress[0].zone_id;
@@ -501,7 +508,7 @@ class DatabaseClient {
         callback(err);
         return
       }
-      callback(err, results);
+      callback(null, results);
     })
   }
 
@@ -514,9 +521,10 @@ class DatabaseClient {
           logger.error('Error updating battle in progress while trying to mark as completed', {
             err
           });
+          callback(err);
           return
         }
-        callback(err);
+        callback(null);
       }
     );
   }
@@ -531,15 +539,16 @@ class DatabaseClient {
             err,
             results
           });
+          callback(err);
           return
         }
         const randomItem = rollRandomItem(results);
-        console.log('rolled random item, results either itemID or null', randomItem);
+        logger.info(`rolled random item, results (either itemID or null): ${randomItem}`);
         if (randomItem) {
           this.addItemToInventory(playerID, randomItem, callback);
           return
         }
-        callback(err)
+        callback(null);
       }
     );
 
@@ -556,9 +565,10 @@ class DatabaseClient {
           playerID:${playerID}, itemID: ${itemID} `, {
             err
           });
+          callback(err);
           return
         }
-        callback(err)
+        callback(null)
       }
     )
   }
@@ -586,8 +596,14 @@ app.use(cookieSession({
 
 //
 //
+//
+//
+//
 // End initialization
 // Begin declaration of logical functions
+//
+//
+//
 //
 //
 
@@ -641,11 +657,9 @@ function rollGoldReward(enemyStartingHealth, zoneID) {
   return Math.random() * 5 < 1 ? Math.round(baseGold * 1.5) : baseGold;
 }
 
-//rolls are based on x/100 drop chance, x being defined in the database on a per-enemy basis
-//returns either an itemID or null
+// rolls are based on x/100 drop chance, x being defined in the database on a per-enemy basis
+// returns either an itemID or null
 function rollRandomItem(arrayOfItems) {
-
-  console.log('rolling random item from results:', arrayOfItems);
 
   const rollLookup = [];
 
@@ -662,56 +676,52 @@ function rollRandomItem(arrayOfItems) {
 
 //
 //
+//
+//
+//
 // End logical functions
 // Begin query functions
+//
+//
+//
 //
 //
 
 
 // render component inside 'character data top bar' and 'navigation left bar'
 // TODO: remove commented console statements when no longer necessary or update to logger calls
+
 function renderWithNavigationShell(res, username, componentToRender, pageTitle, templateToRender = 'template',
                                    scriptSource, optProps) {
-  db.query(
-    `SELECT * FROM characters WHERE username = ?`,
-    [username],
-    (err, results) => {
-      if (err) {
-        res.sendStatus(500);
-        return
-      }
-      
-      const characterQueryResults = results[0];
-      // console.log('results from querying characters table for ', username, 'are ', characterQueryResults); //TODO remove
-      
-      db.query(
-        `SELECT * FROM character_data WHERE id = ?`,
-        [characterQueryResults.id],
-        (err, results) => {
-          if (err) {
-            res.sendStatus(500);
-            return
-          }
-          
-          const characterDataQueryResults = results[0];
-          // console.log('results of querying character_data table are', characterDataQueryResults); //TODO remove
-          const dataObject = {
-            character: characterQueryResults,
-            character_data: characterDataQueryResults
-          };
-          const userDataObject = {
-            username: dataObject.character.username,
-            experience: dataObject.character_data.experience,
-            gold: dataObject.character_data.gold
-          };
-          const componentWithData = optProps ? // if optProps is truthy: call NavigationShell with optProps
-            <NavigationShell userData={userDataObject} componentToRender={componentToRender} optProps={optProps} /> :
-            <NavigationShell userData={userDataObject} componentToRender={componentToRender} />;
-            
-          return renderWithTemplate(res, componentWithData, pageTitle, templateToRender, scriptSource);
-        });
-    });
+  async.auto({
+    getUserID: (callback) => dbQueries.getCharacterByUsername(username, callback),
+    getUserData: ['getUserID', (results, callback) => dbQueries.getCharacterDataByID(results.getUserID[0].id, callback)]
+  },
+  (err, results) => {
+    if (err) {
+      logger.error('Error rendering with navigation shell', {
+        err
+      });
+      res.sendStatus(500);
+      return;
+    }
+    const characterQueryResults = results.getUserID[0];
+    const characterDataQueryResults = results.getUserData[0];
+    const userDataObject = {
+      username: characterQueryResults.username,
+      experience: characterDataQueryResults.experience,
+      gold: characterDataQueryResults.gold
+    };
+    const componentWithData = optProps ? // if optProps is truthy: call NavigationShell with optProps
+      <NavigationShell userData={userDataObject} componentToRender={componentToRender} optProps={optProps} /> :
+      <NavigationShell userData={userDataObject} componentToRender={componentToRender} />;
+
+    return renderWithTemplate(res, componentWithData, pageTitle, templateToRender, scriptSource);
+  });
 }
+
+
+
 
 // checks for currently in progress battle via user's ID, creates one if there isn't one, and renders the page
 function renderZoneBattle(res, zone, pageTitle, username, originalUrl) {
@@ -722,20 +732,26 @@ function renderZoneBattle(res, zone, pageTitle, username, originalUrl) {
     }
     const userData = results[0];
     dbQueries.checkBattlesInProgress(userData.id, (err, results) => {
-      console.log('checked for battle in progress')
       if (err) {
-        console.log('err')
         res.sendStatus(500);
         return
       }
       if (results[0] && !results[0].completed) {
-        console.log('found battle')
         const battle = <Battle bg={`/static/images/zones/${originalUrl}/background.png`} originalUrl={originalUrl} />;
-        return renderWithTemplate(res, battle, pageTitle);
+        renderWithTemplate(res, battle, pageTitle);
+        return;
       }
       if (!results[0] || results[0].completed) {
-        console.log('didnt find battle')
-        return dbQueries.renderNewBattle(res, zone, userData.id);
+        return dbQueries.renderNewBattle(zone, userData.id, (err, battle) => {
+          if (err) {
+            logger.error('Error in renderNewBattle while rendering zone battle', {
+              err
+            });
+            res.sendStatus(500);
+            return;
+          }
+          return renderWithTemplate(res, battle);
+        });
       }
     })
   });
@@ -764,29 +780,27 @@ function handlePlayerAttack(playerID, enemyID, playerWeaponID, playerHealth, ene
         err,
         results
       });
+      cb(err);
       return
     }
     dbQueries.updateBattleInProgressHealthValues({
       ...results, // assign all queried values to an object, followed by additional required variables
       playerID: playerID
-    }, (newHealthValueObject) => {
+    }, (err, newHealthValueObject) => {
       const { newPlayerHealth, newEnemyHealth, playerID } = newHealthValueObject;
 
       if (newPlayerHealth <= 0 || newEnemyHealth <= 0) {
         dbQueries.handleBattleComplete(playerID, (err) => {
           if (err) {
-            logger.error('Error updating battle in progress while trying to mark as completed', {
+            logger.error('Error handling battle complete status while handling player attack', {
               err
             });
+            cb(err);
+            return
           }
-          cb(err);
-
-        })
+        });
       }
-
-      // moved to above callback, final placement uncertain
-      //res.redirect(urlToReturnTo); // redirects player to current zone, which will re-render the battle with new state
-      // TODO could be heavily optimized to hot-load new state with json endpoints, but that drastically changes the structure of the app
+      cb(null);
     })
 
   });
@@ -827,8 +841,14 @@ function rollPlayerMeleeDamage(playerWeaponID, cb) {
 
 //
 //
+//
+//
+//
 // End impure query functions
-// Begin
+// Begin controller class declaration
+//
+//
+//
 //
 //
 
@@ -860,7 +880,6 @@ class Controllers {
         }
         if (passwordFromLogin && userResults.password === passwordFromLogin) {
           res.cookie('username', `${userResults.username}`, { signed: true, path: '/' });
-          // console.log('cookie set, redirecting to /inventory');
           res.redirect(302, '/inventory');
         }
       }
@@ -900,8 +919,14 @@ const controllers = new Controllers(db, logger);
 
 //
 //
-// End
+//
+//
+//
+// End controller class
 // Begin request handling for URLs
+//
+//
+//
 //
 //
 
@@ -988,8 +1013,8 @@ app.post('/battle_attack_post' , (req, res) => {
     userData.userID = results[0].id;
 
     dbQueries.getBattleInProgress(userData.userID, (err, results) => {
-      const { enemy_id, player_weapon_id, player_health, enemy_health } = results;
-      const urlToReturnTo = '/zone/' + results.name.replace(' ', '_');
+      const { enemy_id, player_weapon_id, player_health, enemy_health, name } = results[0];
+      const urlToReturnTo = '/zone/' + name.replace(' ', '_');
       handlePlayerAttack(userData.userID, enemy_id, player_weapon_id, player_health, enemy_health, (err) => {
         if (err) {
           logger.error('Error getting zone name', {
@@ -998,7 +1023,8 @@ app.post('/battle_attack_post' , (req, res) => {
           res.sendStatus(500);
           return
         }
-        res.redirect(urlToReturnTo)
+        res.redirect(urlToReturnTo);
+        // TODO could be heavily optimized to hot-load new state with json endpoints, but that drastically changes the structure of the app
       });
     })
 
