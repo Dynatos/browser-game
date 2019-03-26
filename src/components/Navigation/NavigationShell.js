@@ -1,9 +1,9 @@
 import React, { Component } from 'react';
 import CharacterInformationTopBar from './CharacterInformationTopBar';
 import LeftNavBar from './LeftNavBar';
-import Inventory from './Inventory';
-import Map from './Map';
-import Text from './textThing/Text';
+import Inventory from '../Hub/Inventory';
+import Map from '../Hub/Map';
+import Text from '../textThing/Text';
 
 export default class NavigationShell extends Component {
 

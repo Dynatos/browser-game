@@ -29,8 +29,8 @@ const chokidar = (function() {
 // imported components and data
 import { experience } from './src/constants/experienceObject'; // Used to calculate level
 import LoginPage from './src/components/LoginPage';
-import Battle from './src/components/Battle';
-import NavigationShell from './src/components/NavigationShell';
+import Battle from './src/components/Battle/Battle';
+import NavigationShell from './src/components/Navigation/NavigationShell';
 import SignupPage from './src/components/SignupPage';
 
 // initialize app and database
@@ -62,7 +62,7 @@ const db = mysql.createConnection({ // initialize db login info (required for fu
     }
   }
 });
-db.connect(function databaseConnectErrorHandler(err) { // finalizes connection to db, throws an error if there is one
+db.connect((err) => { // finalizes connection to db, throws an error if there is one
   if (err) {
     console.log('error connecting to db in db.connect() call');
     logger.error('Error connecting to database', err);
@@ -92,26 +92,27 @@ if (true /*process.env.NODE_ENV !== 'production'*/) {
 // database class for initiating db functions and attaching them to any number of dbs
 // to be called with instances of db and logger
 class DatabaseClient {
+
   constructor(db, logger) {
     this.db = db; // database dependency injection
     this.logger = logger; //
   }
-  
+
+
+
+  loginPlayer(usernameFromLogin, passwordFromLogin, callback) {
+    this.db.query(
+      `SELECT * FROM characters WHERE username = ? AND password = ?`,
+      [usernameFromLogin, passwordFromLogin],
+      createSqlCallbackHandler('Error during loginPlayer when fetching from characters using Username and Password', logger, callback)
+    );
+  }
+
   getCharacterByUsername(username, callback) {
     this.db.query(
       `SELECT * FROM characters WHERE username=?`,
       [username],
-      (err, results) => {
-        if (err) {
-          logger.error('Error getting character login info with username', {
-            err,
-            results
-          });
-          callback(err, results);
-          return
-        }
-        callback(null, results);
-      }
+      createSqlCallbackHandler('Error getting character login info with username', logger, callback)
     )
   }
   
@@ -119,17 +120,7 @@ class DatabaseClient {
     this.db.query(
       `SELECT * FROM character_data WHERE id=?`,
       [id],
-      (err, results) => {
-        if (err) {
-          logger.error('Error getting character_data using character_id', {
-            err,
-            results
-          });
-          callback(err, results);
-          return
-        }
-        callback(null, results);
-      }
+      createSqlCallbackHandler('Error getting character_data using character_id', logger, callback)
     )
   }
   
@@ -137,17 +128,7 @@ class DatabaseClient {
     this.db.query(
       `SELECT * FROM inventory WHERE character_id=? AND equipped=true`,
       [characterID],
-      (err, results) => {
-        if (err) {
-          logger.error('Error getting currently equipped weapon from inventory using character_id', {
-            err,
-            results
-          });
-          callback(err, results);
-          return
-        }
-        callback(null, results);
-      }
+      createSqlCallbackHandler('Error getting currently equipped weapon from inventory using character_id', logger, callback)
     )
   }
   
@@ -155,36 +136,114 @@ class DatabaseClient {
     this.db.query(
       `SELECT * FROM battles_in_progress WHERE character_id=?`,
       [character_ID],
-      (err, results) => {
-        if (err) {
-          logger.error('Error fetching from battles_in_progress using Character_ID', {
-            err,
-            results
-          });
-          callback(err, results);
-          return
-        }
-        callback(null, results);
-      }
+      createSqlCallbackHandler('Error fetching from battles_in_progress using Character_ID', logger, callback)
     )
   }
-  
-  loginPlayer(usernameFromLogin, passwordFromLogin, callback) {
+
+  insertIntoBattlesInProgress(userID, enemy, zoneID, equippedWeaponID, characterHealth, enemyHealth, callback) {
     this.db.query(
-      `SELECT * FROM characters WHERE username = ? AND password = ?`,
-      [usernameFromLogin, passwordFromLogin],
+      `INSERT INTO battles_in_progress (character_id, enemy_id, zone_id, player_weapon_id, player_health, enemy_health,
+      completed) VALUES (?, ?, ?, ?, ?, ?, default)`,
+      [userID, enemy, zoneID, equippedWeaponID, characterHealth, enemyHealth],
+      createSqlCallbackHandler('Error inserting into battles_in_progress', logger, callback)
+    )
+  }
+
+  deleteCompletedBattleFromBattlesInProgress(playerID, callback) {
+    this.db.query(
+      `DELETE FROM battles_in_progress WHERE character_id = ?`,
+      [playerID],
+      createSqlCallbackHandler('Error deleting completed battle from battles_in_progress', logger, callback)
+    )
+  }
+
+  getZoneID(zoneName, callback) {
+    this.db.query(
+      `SELECT * FROM zones WHERE name=?`,
+      [zoneName],
+      createSqlCallbackHandler('Error getting zone ID from zone name', logger, callback)
+    )
+  }
+
+  getEnemyData(enemyID, callback) {
+    this.db.query(
+      `SELECT * FROM enemies WHERE id=?`,
+      [enemyID],
+      createSqlCallbackHandler('Error getting enemy data from enemy ID', logger, callback)
+    );
+  }
+
+  getBattleInProgress(userID, callback) {
+    this.db.query(
+      `SELECT * FROM battles_in_progress JOIN zones ON (battles_in_progress.zone_id = zones.id) WHERE character_id = ?;`,
+      [userID],
+      createSqlCallbackHandler('Error getting battle in progress:', logger, callback)
+    );
+  }
+
+  getAllItemsInUserInventory(userID, callback) {
+    this.db.query(
+      `SELECT * FROM inventory WHERE character_id=?`,
+      [userID],
+      createSqlCallbackHandler("Error getting user's items from inventory", logger, callback)
+    );
+  }
+
+  getItemStats(itemIDs, callback) {
+    this.db.query(
+      `SELECT * FROM items WHERE id IN (?)`,
+      [itemIDs],
+      createSqlCallbackHandler('Error getting item stats', logger, callback)
+    );
+  }
+
+  getZoneNameFromID(zoneID, callback) {
+    this.db.query(
+      `SELECT * FROM zones WHERE id=?`,
+      [zoneID],
+      createSqlCallbackHandler('Error getting zone name', logger, callback)
+    )
+  }
+
+  updateBattleInProgressHealthValues(newValueObject, callback) {
+    const { newPlayerHealth, newEnemyHealth, playerID } = newValueObject;
+    this.db.query(
+      `UPDATE battles_in_progress SET player_health = ?, enemy_health = ? WHERE character_id = ?`,
+      [newPlayerHealth, newEnemyHealth, playerID],
+      createSqlCallbackHandler('Error updating battles in progress during player attack:', logger, callback)
+    );
+  }
+
+  setBattleInProgressToCompleted(playerID, callback) {
+    this.db.query(
+      `UPDATE battles_in_progress SET completed = 1 WHERE character_id = ?`,
+      [playerID],
+      createSqlCallbackHandler('Error updating battle in progress while trying to mark as completed', logger, callback)
+    );
+  }
+
+  addItemToInventory(playerID, itemID, callback) {
+    this.db.query(
+      `INSERT INTO inventory (character_id, item_id) VALUES (?, ?)`,
+      [playerID, itemID],
+      createSqlCallbackHandler(`Error inserting item drop from successful battle into inventory, playerID:${playerID}, itemID: ${itemID} `, logger, callback)
+    )
+  }
+
+  getZoneEnemies(zoneID, callback) {
+    this.db.query(
+      `SELECT * FROM zone_enemies WHERE zone_id=?`,
+      [zoneID],
       (err, results) => {
         if (err) {
-          logger.error('Error during loginPlayer when fetching from characters using Username and Password', {
-            err,
-            results
-          });
-          callback(err, results);
+          handleDatabaseQueryError('Error getting zone enemies from database');
           return
         }
-        callback(null, results);
-      }
-    );
+        const enemies = results;
+        const randNum = Math.random();
+        const randEnemy = enemies[Math.floor(randNum * enemies.length)];
+        callback(null, enemies, randNum, randEnemy, zoneID);
+      })
   }
   
   // TODO: extract data fetching from component rendering, add handling for errors
@@ -209,51 +268,14 @@ class DatabaseClient {
       }]
     }, (err, results) => {
       if (err) {
-        logger.error('Error rendering new battle', err);
-        cb(err);
+        handleDatabaseQueryError(err, 'Error rendering new battle', logger, callback);
         return
       }
 
       const battleBackgroundImageURL = `/static/images/zones/${results.getRandomEnemy.zone_name.replace(' ', '_')}/background.png`;
-      const battle = <Battle bg={battleBackgroundImageURL} />;
+      const battle = <Battle bg={battleBackgroundImageURL} enemyID={results.getRandomEnemy.enemy_id} />;
       cb(null, battle);
     });
-  }
-  
-  insertIntoBattlesInProgress(userID, enemy, zoneID, equippedWeaponID, characterHealth, enemyHealth, callback) {
-    this.db.query(
-      `INSERT INTO battles_in_progress (character_id, enemy_id, zone_id, player_weapon_id, player_health, enemy_health,
-      completed) VALUES (?, ?, ?, ?, ?, ?, default)`,
-      [userID, enemy, zoneID, equippedWeaponID, characterHealth, enemyHealth],
-      (err, results) => {
-        if (err) {
-          logger.error('Error inserting into battles_in_progress', {
-            err,
-            results
-          });
-          callback(err, results);
-          return
-        }
-        callback(null, results);
-      }
-    )
-  }
-
-  deleteCompletedBattleFromBattlesInProgress(playerID, callback) {
-    this.db.query(
-      `DELETE FROM battles_in_progress WHERE character_id = ?`,
-      [playerID],
-      (err) => {
-        if (err) {
-          logger.error('Error deleting completed battle from battles_in_progress', {
-            err
-          });
-          callback(err);
-          return
-        }
-        callback(null);
-      }
-    )
   }
 
   getRandomEnemyByZoneName(zone, callback) {
@@ -263,11 +285,7 @@ class DatabaseClient {
       getEnemyData: ['getZoneEnemies', (results, callback) => this.getEnemyData(results.getZoneEnemies[2].enemy_id, callback)]
     }, (err, results) => {
       if (err) {
-        logger.error('Error getting random enemy using zone name', {
-          err,
-          results
-        });
-        callback(err, results);
+        handleDatabaseQueryError(err, 'Error getting random enemy using zone name', logger, callback);
         return
       }
       callback(null, {
@@ -277,78 +295,6 @@ class DatabaseClient {
         zone_name: zone
       });
     })
-  }
-
-  getZoneID(zone, callback) {
-    this.db.query(
-      `SELECT * FROM zones WHERE name=?`,
-      [zone],
-      (err, results) => {
-        if (err) {
-          logger.error('Error getting zone id from zone name', {
-            err,
-            results
-          });
-          callback(err, results);
-          return
-        }
-        callback(null, results);
-    })
-  }
-
-  getZoneEnemies(zoneID, callback) {
-    this.db.query(
-      `SELECT * FROM zone_enemies WHERE zone_id=?`,
-      [zoneID],
-      (err, results) => {
-        if (err) {
-          logger.error('Error getting zone_enemies from database, error message:', {
-            err,
-            results
-          });
-          callback(err, results);
-          return
-        }
-        const enemies = results;
-        const randNum = Math.random();
-        const randEnemy = enemies[Math.floor(randNum * enemies.length)];
-        callback(null, enemies, randNum, randEnemy, zoneID);
-      })
-  }
-
-  getEnemyData(enemyID, callback) {
-    this.db.query(
-      `SELECT * FROM enemies WHERE id=?`,
-      [enemyID],
-      (err, results) => {
-        if (err) {
-          logger.error('Error getting enemy data from enemy ID', {
-            err,
-            results
-          });
-          callback(err, results);
-          return
-        }
-        callback(null, results);
-    })
-  }
-
-  getBattleInProgress(userID, callback) {
-    this.db.query(
-      `SELECT * FROM battles_in_progress JOIN zones ON (battles_in_progress.zone_id = zones.id) WHERE character_id = ?;`,
-      [userID],
-      (err, results) => {
-        if (err) {
-          logger.error('Error getting battle in progress:', {
-            err,
-            results
-          });
-          callback(err);
-          return
-        }
-        callback(null, results);
-      }
-    );
   }
 
   getInventoryData(username, cb) {
@@ -375,11 +321,7 @@ class DatabaseClient {
       }]
       }, (err, results) => {
         if (err) {
-          logger.error('Error getting inventory data', {
-            err,
-            results
-          });
-          cb(err, results);
+          handleDatabaseQueryError(err, 'Error getting inventory data', logger, callback);
           return
         }
 
@@ -391,95 +333,6 @@ class DatabaseClient {
 
     );
 
-  }
-
-  getAllItemsInUserInventory(userID, callback) {
-    this.db.query(
-      `SELECT * FROM inventory WHERE character_id=?`,
-      [userID],
-      (err, results) => {
-        if (err) {
-          logger.error("Error getting user's items from inventory", {
-            err,
-            results
-          });
-          callback(err);
-          return
-        }
-        callback(null, results)
-      }
-    );
-  }
-
-  getItemStats(itemIDs, callback) {
-    this.db.query(
-      `SELECT * FROM items WHERE id IN (?)`,
-      [itemIDs],
-      (err, results) => {
-        if (err) {
-          logger.error('Error getting item stats', {
-            err,
-            results
-          });
-          callback(err);
-          return
-        }
-        callback(null, results)
-      }
-    );
-  }
-
-  getZoneNameFromID(zoneID, callback) {
-    this.db.query(
-      `SELECT * FROM zones WHERE id=?`,
-      [zoneID],
-      (err, results) => {
-        if (err) {
-          logger.error('Error getting zone name', {
-            err,
-            results
-          });
-          callback(err);
-          return
-        }
-        callback(null, results)
-      }
-    )
-  }
-
-  updateBattleInProgressHealthValues(newValueObject, callback) {
-    const { newPlayerHealth, newEnemyHealth, playerID } = newValueObject;
-    this.db.query(
-      `UPDATE battles_in_progress SET player_health = ?, enemy_health = ? WHERE character_id = ?`,
-      [newPlayerHealth, newEnemyHealth, playerID],
-      (err) => {
-        if (err) {
-          logger.error('Error updating battles in progress during player attack:', {
-            err
-          });
-          callback(err);
-          return
-        }
-        callback(null, newValueObject);
-      }
-    );
-  }
-
-  setBattleInProgressToCompleted(playerID, callback) {
-    this.db.query(
-      `UPDATE battles_in_progress SET completed = 1 WHERE character_id = ?`,
-      [playerID],
-      (err) => {
-        if (err) {
-          logger.error('Error updating battle in progress while trying to mark as completed', {
-            err
-          });
-          callback(err);
-          return
-        }
-        callback(null);
-      }
-    );
   }
 
   handleBattleComplete(playerID, callback) {
@@ -498,34 +351,16 @@ class DatabaseClient {
       rollItemDrop: ['getEnemyData', (results, callback) => {
         this.rollAndHandleItemDropForSuccessfulBattle(playerID, results.getBattleInProgress[0].enemy_id, callback)
       }],
-
-    }, (err, results) => {
-      if (err) {
-        logger.error('Error running async.auto calls inside dbQueries.handleBattleComplete', {
-          err,
-          results
-        });
-        callback(err);
-        return
-      }
-      callback(null, results);
-    })
+    },
+      createSqlCallbackHandler('Error running async.auto calls inside dbQueries.handleBattleComplete', logger, callback)
+    )
   }
 
   updatePlayerExperienceAndGold(newExperience, newGold, playerID, callback) {
     this.db.query(
-      `UPDATE character_data SET experience = ? AND gold = ? WHERE character_id = ?`,
+      `UPDATE character_data SET experience = ?, gold = ? WHERE id = ?`,
       [newExperience, newGold, playerID],
-      (err) => {
-        if (err) {
-          logger.error('Error updating battle in progress while trying to mark as completed', {
-            err
-          });
-          callback(err);
-          return
-        }
-        callback(null);
-      }
+      createSqlCallbackHandler('Error updating player experience and gold', logger, callback)
     );
   }
 
@@ -535,11 +370,7 @@ class DatabaseClient {
       [enemyID],
       (err, results) => {
         if (err) {
-          logger.error('Error rolling item drop after successful battle', {
-            err,
-            results
-          });
-          callback(err);
+          handleDatabaseQueryError(err, 'Error rolling item drop after successful battle', logger, callback);
           return
         }
         const randomItem = rollRandomItem(results);
@@ -551,28 +382,29 @@ class DatabaseClient {
         callback(null);
       }
     );
-
-
   }
 
-  addItemToInventory(playerID, itemID, callback) {
-    this.db.query(
-      `INSERT INTO inventory (character_id, item_id) VALUES (?, ?)`,
-      [playerID, itemID],
-      (err) => {
-        if (err) {
-          logger.error(`Error inserting item drop from successful battle into inventory, 
-          playerID:${playerID}, itemID: ${itemID} `, {
-            err
-          });
-          callback(err);
-          return
-        }
-        callback(null)
-      }
-    )
-  }
-
+  // testErrorHandler(errorText, callback) {
+  //
+  //   // test case for testing this function
+  //   // dbQueries.testErrorHandler('this is the error text', (err, results) => {
+  //   //   if (err) {
+  //   //     res.sendStatus(500);
+  //   //     return
+  //   //   }
+  //   // });
+  //
+  //   this.db.query(
+  //     `BAD SQL SYNTAX = ?`,
+  //     [errorText],
+  //     (err, results) => {
+  //       if (handleDatabaseQueryError(err, errorText, logger, callback)) {
+  //         return;
+  //       }
+  //       console.log('I should not log');
+  //     }
+  //   )
+  // }
 
 }
 
@@ -673,6 +505,29 @@ function rollRandomItem(arrayOfItems) {
   return rollLookup[roll] ? rollLookup[roll] : null
 }
 
+// currying function used to generate callback for sql queries
+// returns a callback that will handle errors, and call its callback with either null or null and results (as needed)
+function createSqlCallbackHandler(errorText, logger, callback) {
+  return function sqlCallbackHandler(err, ...rest) { // ...rest inherits all unused arguments (includes results)
+    if (err) {
+      logger.error(errorText, {
+        err
+      });
+      callback(err);
+      return;
+    }
+    callback.apply(this, [null, ...rest]);
+  };
+}
+
+// turns a 5 line error handler into a one liner, makes DatabaseClient less verbose
+function handleDatabaseQueryError(err, errorText, logger, callback) {
+  logger.error(errorText, {
+    err
+  });
+  callback(err);
+}
+
 
 //
 //
@@ -720,9 +575,6 @@ function renderWithNavigationShell(res, username, componentToRender, pageTitle, 
   });
 }
 
-
-
-
 // checks for currently in progress battle via user's ID, creates one if there isn't one, and renders the page
 function renderZoneBattle(res, zone, pageTitle, username, originalUrl) {
   dbQueries.getCharacterByUsername(username, (err, results) => {
@@ -737,7 +589,8 @@ function renderZoneBattle(res, zone, pageTitle, username, originalUrl) {
         return
       }
       if (results[0] && !results[0].completed) {
-        const battle = <Battle bg={`/static/images/zones/${originalUrl}/background.png`} originalUrl={originalUrl} />;
+        const battle = <Battle bg={`/static/images/zones/${originalUrl}/background.png`} originalUrl={originalUrl}
+                               enemyID={results[0].enemy_id} />;
         renderWithTemplate(res, battle, pageTitle);
         return;
       }

@@ -1,6 +1,6 @@
 import React, { Component } from 'react';
 
-import { experience } from '../constants/experienceObject';
+import { experience } from '../../constants/experienceObject';
 
 const getLevel = (exp) => {
   let returnNum;

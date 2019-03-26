@@ -1,5 +1,3 @@
-
-
 body {
     margin: 0 auto;
     background-color: #444444;
@@ -26,7 +24,13 @@ body {
     background-color: #CCCCCC;
 }
 
-.login-page-highest-parent, .signup-page-highest-parent {
+
+
+
+
+
+.login-page-highest-parent,
+.signup-page-highest-parent {
     margin: 10% auto auto auto;
 }
 
@@ -46,6 +50,11 @@ body {
     display: flex;
     flex-wrap: wrap;
 }
+
+
+
+
+
 
 .character-data-display-top-bar {
     display: flex;
@@ -88,6 +97,10 @@ body {
     color: black;
 }
 
+
+
+
+
 .logout-button-anchor {
     height: 48px;
     width: auto;
@@ -103,6 +116,10 @@ body {
     display: flex;
     margin: auto;
 }
+
+
+
+
 
 .left-navbar-highest-parent {
     height: calc(100% - 54px);
@@ -150,19 +167,16 @@ body {
     font-size: 36px;
 }
 
-.display-none {
-    display: none;
-}
-
-.display-inline-block {
-    display: inline-block;
-}
-
 .navigation-shell-internal-component {
     height: calc(100% - 54px);
     width: calc(100% - 145px);
     padding: 5px 5px 0;
 }
+
+
+
+
+
 
 /*.inventory-highest-parent {*/
     /*min-width: 300px;*/
@@ -272,6 +286,10 @@ body {
     overflow: hidden;
 }
 
+
+
+
+
 .battle-highest-parent {
     width: 100%;
     height: 100%;
@@ -295,6 +313,49 @@ body {
     height: 256px;
     float: right;
 }
+
+
+
+
+
+.reward-highest-parent {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.reward-gold-parent {
+    min-width: 80px;
+    max-width: 160px;
+    font-size: 16px;
+    margin: auto;
+}
+
+.reward-experience-parent {
+    min-width: 80px;
+    max-width: 160px;
+    font-size: 16px;
+    margin: auto;
+}
+
+.reward-item-parent {
+
+}
+
+.reward-item-child {
+
+}
+
+.reward-item--no-item {
+
+}
+
+
+
+
+
 
 #app {
     height: calc(100% - 54px);
@@ -321,6 +382,18 @@ body {
     font-size: 72px;
     margin: auto;
 }
+
+.display-none {
+    display: none;
+}
+
+.display-inline-block {
+    display: inline-block;
+}
+
+
+
+
 
 @media only screen and (min-width: 960px) {
     .game-window-root {
