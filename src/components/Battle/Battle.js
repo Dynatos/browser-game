@@ -11,9 +11,9 @@ export default class Battle extends Component {
         <div className="battle-alignment" >
           <img className="battle-player-image" src="../../static/images/zones/enchanted_forest/player.png" alt="Player"/>
           <img className="battle-enemy-image" src={`../../static/images/zones/enchanted_forest/${enemyID}.png`} alt="Enemy"/>
-          <form action="/battle_attack_post" method="post">
+          <form action="/battle_attack_post" method="post" className="battle-attack--form">
             <input type="hidden" name="zoneArea" value={originalUrl} />
-            <input type="submit" id="battle-submit-attack" className="battle-attack-button" name="Attack"
+            <input type="submit" id="battle-submit-attack" className="battle-attack--button" name="Attack"
             value="Attack" />
           </form>
         </div>

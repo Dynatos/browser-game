@@ -35,7 +35,7 @@ export default class Rewards extends Component {
           Gold:{gold}
         </div>
         <div className="reward-experience-parent" >
-          Experience:{experienceObj.gained}
+          Experience: {experienceObj.gained}
         </div>
         {this.getItemDropDiv(itemData)}
       </div>

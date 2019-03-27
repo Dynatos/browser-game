@@ -314,6 +314,31 @@ body {
     float: right;
 }
 
+.battle-attack--form {
+
+}
+
+.battle-attack--button {
+    height: 30px;
+    width: 80px;
+    margin: 25% auto 0;
+}
+
+.battle-lost--highest-parent {
+
+}
+
+.battle-lost--align-text {
+    width: 50%;
+    height: 15%;
+    margin: 40px auto;
+    font-size: 24px;
+}
+
+.battle-lost--button {
+
+}
+
 
 
 

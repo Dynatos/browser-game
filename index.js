@@ -9,6 +9,7 @@ const cookieSession = require('cookie-session');
 const async = require('async');
 const winston = require('winston');
 const chokidar = (function() {
+  //TODO
   // had issues with process.env.NODE_ENV, removed for now
   // const production = process.env.NODE_ENV === 'production';
   // console.log(`Process running in ${process.env.NODE_ENV} mode, hot reloading if that doesn't say production`);
@@ -32,6 +33,7 @@ import LoginPage from './src/components/LoginPage';
 import Battle from './src/components/Battle/Battle';
 import NavigationShell from './src/components/Navigation/NavigationShell';
 import SignupPage from './src/components/SignupPage';
+import LostBattle from "./src/components/Battle/LostBattle";
 
 // initialize app and database
 const app = express(); // initialize app
@@ -230,6 +232,14 @@ class DatabaseClient {
     )
   }
 
+  updatePlayerExperienceAndGold(newExperience, newGold, playerID, callback) {
+    this.db.query(
+      `UPDATE character_data SET experience = ?, gold = ? WHERE id = ?`,
+      [newExperience, newGold, playerID],
+      createSqlCallbackHandler('Error updating player experience and gold', logger, callback)
+    );
+  }
+
   getZoneEnemies(zoneID, callback) {
     this.db.query(
       `SELECT * FROM zone_enemies WHERE zone_id=?`,
@@ -304,6 +314,7 @@ class DatabaseClient {
     async.auto({
       getUserID: (callback) => this.getCharacterByUsername(username, callback),
       getInventoryItems: ['getUserID', (results, callback) => {
+        console.log('get inventory: ', JSON.stringify(results));
         this.getAllItemsInUserInventory(results.getUserID[0].id, callback)
       }],
       getItemStats: ['getInventoryItems', (results, callback) => {
@@ -335,33 +346,39 @@ class DatabaseClient {
 
   }
 
-  handleBattleComplete(playerID, callback) {
-    async.auto({
-      setBattleCompleted: (callback) => this.setBattleInProgressToCompleted(playerID, callback),
-      getBattleInProgress: (callback) => this.getBattleInProgress(playerID, callback),
-      getCharacterData: (callback) => this.getCharacterDataByID(playerID, callback),
-      getEnemyData: ['getBattleInProgress', (results, callback) => this.getEnemyData(results.getBattleInProgress[0].enemy_id, callback)],
-      updateExperienceAndGold: ['getBattleInProgress', 'getCharacterData', 'getEnemyData', (results, callback) => {
-        const enemyStartingHealth = results.getEnemyData[0].initial_health;
-        const zoneID = results.getBattleInProgress[0].zone_id;
-        const newExperience = results.getCharacterData[0].experience + rollExperienceReward(enemyStartingHealth, zoneID);
-        const newGold = results.getCharacterData[0].gold + rollGoldReward(enemyStartingHealth, zoneID);
-        this.updatePlayerExperienceAndGold(newExperience, newGold, playerID, callback);
-      }],
-      rollItemDrop: ['getEnemyData', (results, callback) => {
-        this.rollAndHandleItemDropForSuccessfulBattle(playerID, results.getBattleInProgress[0].enemy_id, callback)
-      }],
-    },
-      createSqlCallbackHandler('Error running async.auto calls inside dbQueries.handleBattleComplete', logger, callback)
-    )
-  }
-
-  updatePlayerExperienceAndGold(newExperience, newGold, playerID, callback) {
-    this.db.query(
-      `UPDATE character_data SET experience = ?, gold = ? WHERE id = ?`,
-      [newExperience, newGold, playerID],
-      createSqlCallbackHandler('Error updating player experience and gold', logger, callback)
-    );
+  handleBattleComplete(playerID, didPlayerWin, cb) {
+    if (didPlayerWin) {
+      async.auto({
+        setBattleCompleted: (callback) => this.setBattleInProgressToCompleted(playerID, callback),
+        getBattleInProgress: (callback) => this.getBattleInProgress(playerID, callback),
+        getCharacterData: (callback) => this.getCharacterDataByID(playerID, callback),
+        getEnemyData: ['getBattleInProgress', (results, callback) => this.getEnemyData(results.getBattleInProgress[0].enemy_id, callback)],
+        updateExperienceAndGold: ['getBattleInProgress', 'getCharacterData', 'getEnemyData', (results, callback) => {
+          const enemyStartingHealth = results.getEnemyData[0].initial_health;
+          const zoneID = results.getBattleInProgress[0].zone_id;
+          const newExperience = results.getCharacterData[0].experience + rollExperienceReward(enemyStartingHealth, zoneID);
+          const newGold = results.getCharacterData[0].gold + rollGoldReward(enemyStartingHealth, zoneID);
+          this.updatePlayerExperienceAndGold(newExperience, newGold, playerID, callback);
+        }],
+        rollItemDrop: ['getEnemyData', (results, callback) => {
+          this.rollAndHandleItemDropForSuccessfulBattle(playerID, results.getBattleInProgress[0].enemy_id, callback)
+        }],
+      },
+      (err, results) => {
+        if (err) {
+          logger.error('Error running async.auto calls inside dbQueries.handleBattleComplete', {
+            err,
+            results
+          });
+          cb(err);
+          return
+        }
+        cb(null, results);
+      })
+    }
+    else {
+      this.deleteCompletedBattleFromBattlesInProgress(playerID, cb)
+    }
   }
 
   rollAndHandleItemDropForSuccessfulBattle(playerID, enemyID, callback) {
@@ -374,7 +391,6 @@ class DatabaseClient {
           return
         }
         const randomItem = rollRandomItem(results);
-        logger.info(`rolled random item, results (either itemID or null): ${randomItem}`);
         if (randomItem) {
           this.addItemToInventory(playerID, randomItem, callback);
           return
@@ -508,7 +524,7 @@ function rollRandomItem(arrayOfItems) {
 // currying function used to generate callback for sql queries
 // returns a callback that will handle errors, and call its callback with either null or null and results (as needed)
 function createSqlCallbackHandler(errorText, logger, callback) {
-  return function sqlCallbackHandler(err, ...rest) { // ...rest inherits all unused arguments (includes results)
+  return function sqlCallbackHandler(err, results) { // ...rest inherits all unused arguments (includes results)
     if (err) {
       logger.error(errorText, {
         err
@@ -516,7 +532,8 @@ function createSqlCallbackHandler(errorText, logger, callback) {
       callback(err);
       return;
     }
-    callback.apply(this, [null, ...rest]);
+    //console.log('sql fn', callback, arguments);
+    callback.call(this, null, results);
   };
 }
 
@@ -634,26 +651,30 @@ function handlePlayerAttack(playerID, enemyID, playerWeaponID, playerHealth, ene
         results
       });
       cb(err);
-      return
+      return;
     }
-    dbQueries.updateBattleInProgressHealthValues({
-      ...results, // assign all queried values to an object, followed by additional required variables
-      playerID: playerID
-    }, (err, newHealthValueObject) => {
+    console.log('results', results);
+    // assign all queried values to an object, followed by additional required variables
+    const newHealthValueObject = {
+      ...results, playerID: playerID
+    };
+    console.log('obj', newHealthValueObject);
+    dbQueries.updateBattleInProgressHealthValues(newHealthValueObject, (err) => {
+      if (err) {
+        handleDatabaseQueryError(err, "Error updating battles in progress health values", logger, cb);
+      }
       const { newPlayerHealth, newEnemyHealth, playerID } = newHealthValueObject;
+      const didPlayerWin = newPlayerHealth >= newEnemyHealth; // boolean true or false
 
       if (newPlayerHealth <= 0 || newEnemyHealth <= 0) {
-        dbQueries.handleBattleComplete(playerID, (err) => {
+        dbQueries.handleBattleComplete(playerID, didPlayerWin, (err) => {
           if (err) {
-            logger.error('Error handling battle complete status while handling player attack', {
-              err
-            });
-            cb(err);
-            return
+            handleDatabaseQueryError(err, 'Error handling battle complete status while handling player attack', logger, callback);
+            return;
           }
         });
       }
-      cb(null);
+      cb(null, !didPlayerWin);
     })
 
   });
@@ -774,7 +795,7 @@ const controllers = new Controllers(db, logger);
 //
 //
 //
-//
+//battle_attack_post
 // End controller class
 // Begin request handling for URLs
 //
@@ -856,7 +877,6 @@ app.get('/zone/enchanted_forest', (req, res) => {
 // endpoint to be hit when player clicks 'attack' button in battle
 //
 app.post('/battle_attack_post' , (req, res) => {
-
   const userData = {
     username: req.signedCookies.username
   };
@@ -868,13 +888,17 @@ app.post('/battle_attack_post' , (req, res) => {
     dbQueries.getBattleInProgress(userData.userID, (err, results) => {
       const { enemy_id, player_weapon_id, player_health, enemy_health, name } = results[0];
       const urlToReturnTo = '/zone/' + name.replace(' ', '_');
-      handlePlayerAttack(userData.userID, enemy_id, player_weapon_id, player_health, enemy_health, (err) => {
+      handlePlayerAttack(userData.userID, enemy_id, player_weapon_id, player_health, enemy_health, (err, didPlayerLose) => {
         if (err) {
           logger.error('Error getting zone name', {
             err
           });
           res.sendStatus(500);
-          return
+          return;
+        }
+        if (didPlayerLose) {
+          renderWithTemplate(res, <LostBattle />, 'Oh dear you lost', 'only-react-component');
+          return;
         }
         res.redirect(urlToReturnTo);
         // TODO could be heavily optimized to hot-load new state with json endpoints, but that drastically changes the structure of the app
@@ -904,7 +928,7 @@ app.get('/*', (req, res) => {
 app.listen(8001, function appDotListenErrorHandler(err) {
   if (err) {
     res.sendStatus(500);
-    return
+    return;
   }
   console.log('Listening at http://localhost:8001/');
 });
