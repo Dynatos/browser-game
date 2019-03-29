@@ -34,6 +34,7 @@ import Battle from './src/components/Battle/Battle';
 import NavigationShell from './src/components/Navigation/NavigationShell';
 import SignupPage from './src/components/SignupPage';
 import LostBattle from "./src/components/Battle/LostBattle";
+import Rewards from "./src/components/Battle/Rewards";
 
 // initialize app and database
 const app = express(); // initialize app
@@ -167,6 +168,14 @@ class DatabaseClient {
     )
   }
 
+  getZoneNameFromID(zoneID, callback) {
+    this.db.query(
+      `SELECT * FROM zones WHERE id=?`,
+      [zoneID],
+      createSqlCallbackHandler('Error getting zone name', logger, callback)
+    )
+  }
+
   getEnemyData(enemyID, callback) {
     this.db.query(
       `SELECT * FROM enemies WHERE id=?`,
@@ -199,16 +208,16 @@ class DatabaseClient {
     );
   }
 
-  getZoneNameFromID(zoneID, callback) {
+  getItemNameFromID(itemID, callback) {
     this.db.query(
-      `SELECT * FROM zones WHERE id=?`,
-      [zoneID],
-      createSqlCallbackHandler('Error getting zone name', logger, callback)
+      `SELECT name FROM items WHERE id=?`,
+      [itemID],
+      createSqlCallbackHandler('Error getting item name with item ID', logger, callback)
     )
   }
 
-  updateBattleInProgressHealthValues(newValueObject, callback) {
-    const { newPlayerHealth, newEnemyHealth, playerID } = newValueObject;
+  updateBattleInProgressHealthValues(newHealthValueObject, playerID, callback) {
+    const { newPlayerHealth, newEnemyHealth } = newHealthValueObject;
     this.db.query(
       `UPDATE battles_in_progress SET player_health = ?, enemy_health = ? WHERE character_id = ?`,
       [newPlayerHealth, newEnemyHealth, playerID],
@@ -238,6 +247,20 @@ class DatabaseClient {
       [newExperience, newGold, playerID],
       createSqlCallbackHandler('Error updating player experience and gold', logger, callback)
     );
+  }
+
+  getExperienceAndLevelObject(playerID, experienceGained = null, callback) {
+    this.getCharacterDataByID(playerID, (err, results) => {
+      const level = getLevel(results[0].experience);
+      const experienceObject = {
+        experience: results[0].experience,
+        level: level,
+      };
+      if (experienceGained) {
+        experienceObject.gained = experienceGained;
+      }
+      callback(null, experienceObject)
+    });
   }
 
   getZoneEnemies(zoneID, callback) {
@@ -347,36 +370,52 @@ class DatabaseClient {
   }
 
   handleBattleComplete(playerID, didPlayerWin, cb) {
-    if (didPlayerWin) {
+    if (didPlayerWin) { // need to handle experience, gold, item reward
+      const goldAndExpObj = {};
       async.auto({
-        setBattleCompleted: (callback) => this.setBattleInProgressToCompleted(playerID, callback),
+        setBattleCompleted: (callback) => {this.setBattleInProgressToCompleted(playerID, callback)},
         getBattleInProgress: (callback) => this.getBattleInProgress(playerID, callback),
         getCharacterData: (callback) => this.getCharacterDataByID(playerID, callback),
         getEnemyData: ['getBattleInProgress', (results, callback) => this.getEnemyData(results.getBattleInProgress[0].enemy_id, callback)],
         updateExperienceAndGold: ['getBattleInProgress', 'getCharacterData', 'getEnemyData', (results, callback) => {
           const enemyStartingHealth = results.getEnemyData[0].initial_health;
           const zoneID = results.getBattleInProgress[0].zone_id;
-          const newExperience = results.getCharacterData[0].experience + rollExperienceReward(enemyStartingHealth, zoneID);
-          const newGold = results.getCharacterData[0].gold + rollGoldReward(enemyStartingHealth, zoneID);
-          this.updatePlayerExperienceAndGold(newExperience, newGold, playerID, callback);
+
+          goldAndExpObj.newExperience =
+            results.getCharacterData[0].experience + rollExperienceReward(enemyStartingHealth, zoneID);
+          goldAndExpObj.newGold =
+            results.getCharacterData[0].gold + rollGoldReward(enemyStartingHealth, zoneID);
+          goldAndExpObj.oldGold = results.getCharacterData[0].gold;
+          goldAndExpObj.oldExp = results.getCharacterData[0].experience;
+
+          this.updatePlayerExperienceAndGold(goldAndExpObj.newExperience, goldAndExpObj.newGold, playerID, callback);
         }],
         rollItemDrop: ['getEnemyData', (results, callback) => {
-          this.rollAndHandleItemDropForSuccessfulBattle(playerID, results.getBattleInProgress[0].enemy_id, callback)
+          this.rollAndHandleItemDropForSuccessfulBattle(playerID, results.getBattleInProgress[0].enemy_id, callback);
+        }],
+        getItemName: ['rollItemDrop', (results, callback) => {
+          if (results.rollItemDrop[0]) {
+            this.getItemNameFromID(results.rollItemDrop[0], callback);
+          }
+          else {
+            callback(null, null);
+          }
         }],
       },
       (err, results) => {
         if (err) {
-          logger.error('Error running async.auto calls inside dbQueries.handleBattleComplete', {
-            err,
-            results
-          });
-          cb(err);
+          handleDatabaseQueryError(err, 'Error running async.auto calls inside dbQueries.handleBattleComplete', logger, cb);
           return
         }
-        cb(null, results);
+        const valueObject = {
+          ...results,
+          updateExperienceAndGold: {...goldAndExpObj}
+        };
+        delete valueObject.setBattleCompleted;
+        cb(null, valueObject);
       })
     }
-    else {
+    else { //player lost, don't need to update any account data, only need to remove battle so another can be made
       this.deleteCompletedBattleFromBattlesInProgress(playerID, cb)
     }
   }
@@ -390,12 +429,12 @@ class DatabaseClient {
           handleDatabaseQueryError(err, 'Error rolling item drop after successful battle', logger, callback);
           return
         }
-        const randomItem = rollRandomItem(results);
-        if (randomItem) {
-          this.addItemToInventory(playerID, randomItem, callback);
+        const randomItemID = rollRandomItem(results);
+        if (randomItemID) {
+          this.addItemToInventory(playerID, randomItemID, callback);
           return
         }
-        callback(null);
+        callback(null, [randomItemID]);
       }
     );
   }
@@ -630,6 +669,7 @@ function renderZoneBattle(res, zone, pageTitle, username, originalUrl) {
 // function that calls db querying functions asynchronously, then calls back with the queried values
 // stored as keys in the results object
 function handlePlayerAttack(playerID, enemyID, playerWeaponID, playerHealth, enemyHealth, cb) {
+// cb expects (err, isBattleComplete, didPlayerLose, results)
 
   async.parallel({
     newPlayerHealth: (callback) => {
@@ -646,36 +686,42 @@ function handlePlayerAttack(playerID, enemyID, playerWeaponID, playerHealth, ene
 
   (err, results) => {
     if (err) {
-      logger.error('Error handling player attack:', {
-        err,
-        results
-      });
-      cb(err);
+      handleDatabaseQueryError(err, 'Error handling player attack:', logger, cb);
       return;
     }
-    console.log('results', results);
-    // assign all queried values to an object, followed by additional required variables
+
+    // assign all queried values to an object with a more intuitive name
     const newHealthValueObject = {
-      ...results, playerID: playerID
+      ...results
     };
-    console.log('obj', newHealthValueObject);
-    dbQueries.updateBattleInProgressHealthValues(newHealthValueObject, (err) => {
+
+    dbQueries.updateBattleInProgressHealthValues(newHealthValueObject, playerID, (err) => {
       if (err) {
         handleDatabaseQueryError(err, "Error updating battles in progress health values", logger, cb);
       }
-      const { newPlayerHealth, newEnemyHealth, playerID } = newHealthValueObject;
+
+      const { newPlayerHealth, newEnemyHealth } = newHealthValueObject;
       const didPlayerWin = newPlayerHealth >= newEnemyHealth; // boolean true or false
 
-      if (newPlayerHealth <= 0 || newEnemyHealth <= 0) {
-        dbQueries.handleBattleComplete(playerID, didPlayerWin, (err) => {
+      if (newPlayerHealth <= 0 || newEnemyHealth <= 0) { //battle is comnplete
+
+        dbQueries.handleBattleComplete(playerID, didPlayerWin, (err, results) => {
           if (err) {
             handleDatabaseQueryError(err, 'Error handling battle complete status while handling player attack', logger, callback);
             return;
           }
+          console.log('battle is completed', JSON.stringify(results));
+          cb(null, true, !didPlayerWin, results); // cb expects (err, isBattleComplete, didPlayerLose, results)
+          return;
         });
+
       }
-      cb(null, !didPlayerWin);
-    })
+
+      else { //battle is not complete
+        cb(null, false, !didPlayerWin, null); // cb expects (err, isBattleComplete, didPlayerLose, results)
+      }
+
+    });
 
   });
 }
@@ -887,8 +933,9 @@ app.post('/battle_attack_post' , (req, res) => {
 
     dbQueries.getBattleInProgress(userData.userID, (err, results) => {
       const { enemy_id, player_weapon_id, player_health, enemy_health, name } = results[0];
-      const urlToReturnTo = '/zone/' + name.replace(' ', '_');
-      handlePlayerAttack(userData.userID, enemy_id, player_weapon_id, player_health, enemy_health, (err, didPlayerLose) => {
+      const currentZoneURL = '/zone/' + name.replace(' ', '_');
+      handlePlayerAttack(userData.userID, enemy_id, player_weapon_id, player_health, enemy_health,
+      (err, isBattleComplete, didPlayerLose, results) => {
         if (err) {
           logger.error('Error getting zone name', {
             err
@@ -896,11 +943,14 @@ app.post('/battle_attack_post' , (req, res) => {
           res.sendStatus(500);
           return;
         }
-        if (didPlayerLose) {
+        if (isBattleComplete && didPlayerLose) {
           renderWithTemplate(res, <LostBattle />, 'Oh dear you lost', 'only-react-component');
           return;
         }
-        res.redirect(urlToReturnTo);
+        if (isBattleComplete && !didPlayerLose) {
+          renderWithTemplate(res, <Rewards propsObject={results} />, 'Success!', 'only-react-component')
+        }
+        res.redirect(currentZoneURL); // reloads the page which gets fresh data from db
         // TODO could be heavily optimized to hot-load new state with json endpoints, but that drastically changes the structure of the app
       });
     })

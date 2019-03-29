@@ -27,17 +27,18 @@ export default class Rewards extends Component {
 
   render() {
 
-    const { gold, experienceObj, itemData } = this.props;
+    const { oldGold, oldExp, newGold, newExp } = this.props.propsObject.updateExperienceAndGold;
+    const randomItem = this.props.propsObject.getItemName;
 
     return (
       <div className="reward-highest-parent" >
         <div className="reward-gold-parent" >
-          Gold:{gold}
+          Gold:{newGold - oldGold}
         </div>
         <div className="reward-experience-parent" >
-          Experience: {experienceObj.gained}
+          Experience: {newExp - oldExp}
         </div>
-        {this.getItemDropDiv(itemData)}
+        {this.getItemDropDiv(randomItem)}
       </div>
     )
   }
