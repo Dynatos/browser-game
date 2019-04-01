@@ -196,7 +196,7 @@ class DatabaseClient {
     this.db.query(
       `SELECT * FROM inventory WHERE character_id=?`,
       [userID],
-      createSqlCallbackHandler("Error getting user's items from inventory", logger, callback)
+      createSqlCallbackHandler('Error getting user\'s items from inventory', logger, callback)
     );
   }
 
@@ -381,14 +381,14 @@ class DatabaseClient {
           const enemyStartingHealth = results.getEnemyData[0].initial_health;
           const zoneID = results.getBattleInProgress[0].zone_id;
 
-          goldAndExpObj.newExperience =
+          goldAndExpObj.newExp =
             results.getCharacterData[0].experience + rollExperienceReward(enemyStartingHealth, zoneID);
           goldAndExpObj.newGold =
             results.getCharacterData[0].gold + rollGoldReward(enemyStartingHealth, zoneID);
           goldAndExpObj.oldGold = results.getCharacterData[0].gold;
           goldAndExpObj.oldExp = results.getCharacterData[0].experience;
 
-          this.updatePlayerExperienceAndGold(goldAndExpObj.newExperience, goldAndExpObj.newGold, playerID, callback);
+          this.updatePlayerExperienceAndGold(goldAndExpObj.newExp, goldAndExpObj.newGold, playerID, callback);
         }],
         rollItemDrop: ['getEnemyData', (results, callback) => {
           this.rollAndHandleItemDropForSuccessfulBattle(playerID, results.getBattleInProgress[0].enemy_id, callback);
@@ -429,9 +429,14 @@ class DatabaseClient {
           handleDatabaseQueryError(err, 'Error rolling item drop after successful battle', logger, callback);
           return
         }
-        const randomItemID = rollRandomItem(results);
+        const randomItemID = rollRandomItem(results, 9);
         if (randomItemID) {
-          this.addItemToInventory(playerID, randomItemID, callback);
+          this.addItemToInventory(playerID, randomItemID, (err) => {
+            if (err) {
+              handleDatabaseQueryError(err, 'Error adding item to inventory', logger, callback);
+            }
+            callback(null, [randomItemID])
+          });
           return
         }
         callback(null, [randomItemID]);
@@ -546,7 +551,7 @@ function rollGoldReward(enemyStartingHealth, zoneID) {
 
 // rolls are based on x/100 drop chance, x being defined in the database on a per-enemy basis
 // returns either an itemID or null
-function rollRandomItem(arrayOfItems) {
+function rollRandomItem(arrayOfItems, dropChanceModifier = 100) {
 
   const rollLookup = [];
 
@@ -556,7 +561,7 @@ function rollRandomItem(arrayOfItems) {
     }
   });
 
-  const roll = Math.floor(Math.random() * 100);
+  const roll = Math.floor(Math.random() * dropChanceModifier);
   return rollLookup[roll] ? rollLookup[roll] : null
 }
 
@@ -948,7 +953,12 @@ app.post('/battle_attack_post' , (req, res) => {
           return;
         }
         if (isBattleComplete && !didPlayerLose) {
-          renderWithTemplate(res, <Rewards propsObject={results} />, 'Success!', 'only-react-component')
+          const propsObject = {
+            ...results,
+            experienceObject: experience
+          };
+          renderWithTemplate(res, <Rewards propsObject={propsObject} />, 'Success!', 'template')
+          return;
         }
         res.redirect(currentZoneURL); // reloads the page which gets fresh data from db
         // TODO could be heavily optimized to hot-load new state with json endpoints, but that drastically changes the structure of the app

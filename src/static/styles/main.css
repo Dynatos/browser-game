@@ -377,6 +377,18 @@ body {
 
 }
 
+.reward-experience--progress-bar-parent {
+    width: 100%;
+    height: 24px;
+    border: 1px solid black;
+    background: darkred;
+}
+
+.reward-experience--progress-bar-child--bar {
+    background: lawngreen;
+    height: 100%;
+}
+
 
 
 

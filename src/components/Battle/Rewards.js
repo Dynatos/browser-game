@@ -13,7 +13,7 @@ export default class Rewards extends Component {
         {itemData.map((e) => {
           return (
             <div className="reward-item-child" >
-              {e.innerText}
+              {e.name}
             </div>
           )
         })}
@@ -21,8 +21,12 @@ export default class Rewards extends Component {
     )
   }
 
-  getLevelPercentage(experienceObj) {
+  getLevelPercentage(oldExp, newExp, levelObject) {
 
+  }
+
+  fillBar() {
+    return {width: '50%'}
   }
 
   render() {
@@ -32,13 +36,30 @@ export default class Rewards extends Component {
 
     return (
       <div className="reward-highest-parent" >
+
+        <div>JSON:{JSON.stringify(this.props.propsObject)}</div>
+
         <div className="reward-gold-parent" >
           Gold:{newGold - oldGold}
         </div>
+
         <div className="reward-experience-parent" >
-          Experience: {newExp - oldExp}
+          Experience Gained: {newExp - oldExp}
+          <div className="reward-experience--progress-bar-parent">
+            <div className="reward-experience--progress-bar-child--bar" style={this.fillBar()}/>
+          </div>
         </div>
+
         {this.getItemDropDiv(randomItem)}
+
+
+        <a href="/inventory">
+          Inventory
+        </a>
+        <a href="/map">
+          Map
+        </a>
+
       </div>
     )
   }
