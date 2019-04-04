@@ -25,8 +25,6 @@ export default class Inventory extends Component {
     function renderItems (inventoryItems) {
       const elements = []; // array that will store all inventory item elements, to be returned by renderItems function
 
-
-
       if (inventoryItems && itemIDs && typeof inventoryItems !== 'undefined' && typeof itemIDs[0] !== 'undefined') { // makes sure that all data is present before attempting to populate inventory
         itemIDs.map((elm, index) => {
           const e = inventoryItems[elm]; // elm is current itemID, inventoryItems is item lookup table
@@ -48,7 +46,7 @@ export default class Inventory extends Component {
                {e.level_requirement}
              </p>
               <button className="inventory-item--equip">
-                E
+                Equip
               </button>
            </div>
           );

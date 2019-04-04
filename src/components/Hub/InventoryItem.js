@@ -28,7 +28,7 @@ export default class InventoryItem extends Component {
           {level_requirement}
         </p>
         <p className="inventory-item--sell">
-          <img className="character-data-gold-image" src="/static/images/gold.png" />
+          <img className="character-data-gold-image" src="/static/images/gold2.png" />
         </p>
       </div>
     );

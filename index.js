@@ -251,10 +251,11 @@ class DatabaseClient {
 
   getExperienceAndLevelObject(playerID, experienceGained = null, callback) {
     this.getCharacterDataByID(playerID, (err, results) => {
-      const level = getLevel(results[0].experience);
+      const levelAndRemainderObject = getLevelAndRemainder(results[0].experience);
       const experienceObject = {
         experience: results[0].experience,
-        level: level,
+        level: levelAndRemainderObject.playerLevel,
+        remainder: levelAndRemainderObject.remainder
       };
       if (experienceGained) {
         experienceObject.gained = experienceGained;
@@ -520,6 +521,20 @@ function getLevel(exp) {
     remainingExp -= experience[i];
   }
   return playerLevel;
+}
+
+function getLevelAndRemainder(exp) {
+  let playerLevel;
+  let remainingExp = exp;
+
+  for (let i = 1; remainingExp >= experience[i]; i++) {
+    playerLevel = i;
+    remainingExp -= experience[i];
+  }
+  return {
+    playerLevel: playerLevel,
+    remainder: remainingExp
+  };
 }
 
 // calculate health value based on user's level
@@ -955,9 +970,18 @@ app.post('/battle_attack_post' , (req, res) => {
         if (isBattleComplete && !didPlayerLose) {
           const propsObject = {
             ...results,
-            experienceObject: experience
+            experienceObject: experience,
+            expGained: results.updateExperienceAndGold.newExp - results.updateExperienceAndGold.oldExp
           };
-          renderWithTemplate(res, <Rewards propsObject={propsObject} />, 'Success!', 'template')
+
+          dbQueries.getExperienceAndLevelObject(userData.userID, propsObject.expGained, (err, results) => {
+            if (err) {
+              res.sendStatus(500);
+            }
+            propsObject.experienceAndLevelObject = results;
+
+            renderWithTemplate(res, <Rewards propsObject={propsObject} />, 'Success!', 'template');
+          });
           return;
         }
         res.redirect(currentZoneURL); // reloads the page which gets fresh data from db

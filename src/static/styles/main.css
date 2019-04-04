@@ -66,12 +66,16 @@ body {
 }
 
 .character-data-parent {
-    width: 120px;
+    width: 150px;
     height: 54px;
     margin-left: 2px;
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
 }
 
 .character-data-username {
+    width: 150px;
     font-size: 20px;
     color: #111111;
 }
@@ -79,11 +83,13 @@ body {
 .character-data-level {
     font-size: 14px;
     color: #111111;
+    width: 60px;
 }
 
 .character-data-gold {
     display: flex;
     flex-wrap: wrap;
+    width: 75px;
 }
 
 .character-data-gold-image {
@@ -164,13 +170,13 @@ body {
     align-self: center;
     text-decoration: none;
     color: black;
-    font-size: 36px;
+    font-size: 24px;
 }
 
 .navigation-shell-internal-component {
     height: calc(100% - 54px);
     width: calc(100% - 145px);
-    padding: 5px 5px 0;
+
 }
 
 
@@ -178,9 +184,18 @@ body {
 
 
 
-/*.inventory-highest-parent {*/
+.inventory-highest-parent {
     /*min-width: 300px;*/
-/*}*/
+    overflow: hidden;
+}
+
+.inventory-item-container {
+    /*overflow-y: scroll;*/
+    height: 100%;
+    /*box-sizing: content-box;*/
+    text-transform: capitalize;
+    overflow: hidden;
+}
 
 .inventory-item-container div {
     margin-top: 1px;
@@ -192,6 +207,7 @@ body {
     border: 1px solid #222;
     font-size: 15px;
     display: flex;
+    margin-bottom: 5px;
 }
 
 .inventory-item-legend p {
@@ -352,25 +368,30 @@ body {
 }
 
 .reward-gold-parent {
-    min-width: 80px;
-    max-width: 160px;
+    min-width: 30px;
+    max-width: 240px;
     font-size: 16px;
-    margin: auto;
+    margin: 15px auto;
 }
 
 .reward-experience-parent {
-    min-width: 80px;
-    max-width: 160px;
+    min-width: 40px;
+    max-width: 240px;
     font-size: 16px;
-    margin: auto;
+    margin: 15px auto;
 }
 
 .reward-item-parent {
-
+    display: flex;
+    flex-wrap: wrap;
+    flex-direction: column;
+    align-content: center;
+    margin: 15px auto;
 }
 
 .reward-item-child {
-
+    text-transform: capitalize;
+    margin: 5px auto 0;
 }
 
 .reward-item--no-item {

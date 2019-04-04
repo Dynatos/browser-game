@@ -25,7 +25,7 @@ export default class CharacterInformationTopBar extends Component {
           <div className="character-data-username">{data.username}</div>
           <div className="character-data-level">Level: {level}</div>
           <div className="character-data-gold">
-            <img className="character-data-gold-image" src="/static/images/gold.png" />
+            <img className="character-data-gold-image" src="/static/images/gold2.png" />
             <div className="character-data-gold-text">{data.gold}</div>
           </div>
         </div>
