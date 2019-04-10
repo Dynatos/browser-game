@@ -47,8 +47,10 @@ export default class Rewards extends Component {
   }
 
   fillBar(percentage) {
-    return {width: `${percentage}%`}
+    return {maxWidth: `${percentage}%`}
   }
+
+
 
   render() {
 
@@ -65,10 +67,16 @@ export default class Rewards extends Component {
         </div>
 
         <div className="reward-experience-parent" >
-          Experience Gained: {newExp - oldExp}
-          <div className="reward-experience--progress-bar-parent">
-            <div className="reward-experience--progress-bar-child--bar"
-                 style={this.fillBar(this.getLevelPercentage(experienceAndLevelObject, experienceObject))}/>
+          <div className="reward-experience--gained-experience">
+            Experience Gained: {newExp - oldExp}
+          </div>
+          <div className="reward-experience--align-levels-and-bar">
+            <div className="reward-experience--current-level">{experienceAndLevelObject.level}</div>
+            <div className="reward-experience--progress-bar-parent">
+              <div className="reward-experience--progress-bar-child--bar width-zero"
+                   style={this.fillBar(this.getLevelPercentage(experienceAndLevelObject, experienceObject))}/>
+            </div>
+            <div className="reward-experience--next-level">{experienceAndLevelObject.level + 1}</div>
           </div>
         </div>
 

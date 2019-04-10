@@ -980,7 +980,7 @@ app.post('/battle_attack_post' , (req, res) => {
             }
             propsObject.experienceAndLevelObject = results;
 
-            renderWithTemplate(res, <Rewards propsObject={propsObject} />, 'Success!', 'template');
+            renderWithTemplate(res, <Rewards propsObject={propsObject} />, 'Success!', 'template', );
           });
           return;
         }

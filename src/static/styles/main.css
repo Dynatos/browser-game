@@ -375,10 +375,59 @@ body {
 }
 
 .reward-experience-parent {
-    min-width: 40px;
-    max-width: 240px;
+    min-width: 240px;
+    max-width: 300px;
     font-size: 16px;
     margin: 15px auto;
+    display: flex;
+    flex-wrap: wrap;
+
+}
+
+.reward-experience--gained-experience {
+    margin: 0 auto 9px;
+    max-width: 200px;
+    height: 40%;
+}
+
+.reward-experience--align-levels-and-bar {
+    height: 60%;
+    width: 100%;
+    display: flex;
+}
+
+.reward-experience--progress-bar-parent {
+    max-width: 240px;
+    width: 100%;
+    height: 24px;
+    border: 1px solid black;
+    background: darkred;
+    margin: 0 5px;
+}
+
+.reward-experience--progress-bar-child--bar {
+    background: lawngreen;
+    height: 100%;
+    animation-name: experienceBarFill;
+    animation-duration: 2.5s;
+}
+
+.reward-experience--current-level {
+    max-width: 30px;
+    margin: auto;
+}
+
+.reward-experience--next-level {
+    max-width: 30px;
+    margin: auto;
+}
+
+/* Animation for experience bar filling to current %
+   a max-width is set on the bar which stops the animation when it reaches the 'current level percentage'
+*/
+@keyframes experienceBarFill {
+    from {width: 0;}
+    to {width:100%;}
 }
 
 .reward-item-parent {
@@ -397,20 +446,6 @@ body {
 .reward-item--no-item {
 
 }
-
-.reward-experience--progress-bar-parent {
-    width: 100%;
-    height: 24px;
-    border: 1px solid black;
-    background: darkred;
-}
-
-.reward-experience--progress-bar-child--bar {
-    background: lawngreen;
-    height: 100%;
-}
-
-
 
 
 
