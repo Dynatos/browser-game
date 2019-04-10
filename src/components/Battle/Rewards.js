@@ -24,14 +24,14 @@ export default class Rewards extends Component {
 
   getLevelPercentage(levelObject, experienceObject) {
     const remainder = levelObject.remainder;
-    const expToNextLevel = experienceObject[levelObject.level] + 1;
-    //const remainderToNextLevel = expToNextLevel - remainder;
-    //const percentage = remainder / expToNextLevel;
+    const expToNextLevel = experienceObject[levelObject.level + 1];
 
     return Math.round((remainder / expToNextLevel) * 100);
+    // remainder is the current exp towards next level, dividing by the exp required gives a percentage between 0-1
+    // multiplying by 100 gives a percentage 0-100, which we use to size our progress bar via css
 
     // TODO remove
-    // probably unneccesary but I haven't full tested the above 1-liner so this is here for now
+    // probably unneccesary but I haven't fully tested the above 1-liner so this is here for now
     // return (
     //   (remainder / expToNextLevel) // get percentage to fill progress bar, can be a long number which screws the css
     //   .toString() // make it a string

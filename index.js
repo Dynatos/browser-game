@@ -338,8 +338,8 @@ class DatabaseClient {
     async.auto({
       getUserID: (callback) => this.getCharacterByUsername(username, callback),
       getInventoryItems: ['getUserID', (results, callback) => {
-        console.log('get inventory: ', JSON.stringify(results));
-        this.getAllItemsInUserInventory(results.getUserID[0].id, callback)
+        //console.log('get inventory: ', JSON.stringify(results)); TODO remove
+        this.getAllItemsInUserInventory(results.getUserID[0].id, callback);
       }],
       getItemStats: ['getInventoryItems', (results, callback) => {
 
@@ -730,7 +730,7 @@ function handlePlayerAttack(playerID, enemyID, playerWeaponID, playerHealth, ene
             handleDatabaseQueryError(err, 'Error handling battle complete status while handling player attack', logger, callback);
             return;
           }
-          console.log('battle is completed', JSON.stringify(results));
+          //console.log('battle is completed', JSON.stringify(results));
           cb(null, true, !didPlayerWin, results); // cb expects (err, isBattleComplete, didPlayerLose, results)
           return;
         });

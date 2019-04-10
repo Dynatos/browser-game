@@ -1,5 +1,5 @@
 {
-  "name": "sqlbackendexample",
+  "name": "   ",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
@@ -27,8 +27,8 @@
     "mysql": "^2.16.0",
     "mysql2": "^1.6.5",
     "pug": "^2.0.0-rc.4",
-    "react": "^16.1.0",
-    "react-dom": "^16.1.1",
+    "react": "^16.8.6",
+    "react-dom": "^16.8.6",
     "react-server": "^0.8.0",
     "winston": "^3.0.0"
   },
