@@ -917,6 +917,26 @@ app.get('/inventory', (req, res) => {
 
 });
 
+app.get('/inventory_test', (req, res) => {
+  const username = req.signedCookies.username;
+
+  dbQueries.getInventoryData(username, (err, results) => {
+    if (err) {
+      res.sendStatus(500);
+    }
+
+    if (results.itemData.length) {
+      renderWithNavigationShell(res, username, 'inventory-test', `${username}'s nice things`, 'template', '',
+        {results: results.itemData, itemIDs: results.itemIDs});
+    } else {
+      renderWithNavigationShell(res, username, 'inventory-test', `${username}'s nice things`, 'template', '',
+        {results: [], itemIDs: []});
+    }
+
+  });
+
+});
+
 // when /shop is requested: redirects to /inventory
 // TODO: add shop page
 app.get('/shop', (req, res) => {
@@ -980,7 +1000,7 @@ app.post('/battle_attack_post' , (req, res) => {
             }
             propsObject.experienceAndLevelObject = results;
 
-            renderWithTemplate(res, <Rewards propsObject={propsObject} />, 'Success!', 'template', );
+            renderWithNavigationShell(res, userData.username, "rewardScreen", 'Success!', 'template', null, propsObject);
           });
           return;
         }

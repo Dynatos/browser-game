@@ -39,25 +39,25 @@ export default class Inventory extends Component {
           const e = inventoryItems[elm]; // elm is current itemID, inventoryItems is item lookup table
           const element = (
             <div key={`inventory-item-index-${index}`} className="inventory-item-parent">
-             <p className="inventory-item--item-name">
+              <p className="inventory-item--item-name">
                {e.name}
-             </p>
-             <p className="inventory-item--hand-style">
+              </p>
+              <p className="inventory-item--hand-style">
                {e.two_handed === true ? 2 : 1}
-             </p>
-             <p className="inventory-item--damage">
+              </p>
+              <p className="inventory-item--damage">
                {`${e.min_melee_damage}-${e.max_melee_damage}`}
-             </p>
-             <p className="inventory-item--crit">
+              </p>
+              <p className="inventory-item--crit">
                {e.crit_chance}
-             </p>
-             <p className="inventory-item--req">
+              </p>
+              <p className="inventory-item--req">
                {e.level_requirement}
-             </p>
+              </p>
               <button className="inventory-item--equip">
                 Equip
               </button>
-           </div>
+            </div>
           );
           
           elements.push(element); // pushes current inventory element into the array returned by renderItems
@@ -67,7 +67,7 @@ export default class Inventory extends Component {
     }
     
     return (
-      <div className="inventory-highest-parent navigation-shell-internal-component">
+      <div className={"inventory-highest-parent " + this.props.className}>
         <div className="inventory-item-legend">
           <p className="inventory-item-legend-item-name">
             Name

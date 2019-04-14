@@ -1,9 +1,11 @@
 import React, { Component } from 'react';
 import CharacterInformationTopBar from './CharacterInformationTopBar';
 import LeftNavBar from './LeftNavBar';
-import Inventory from '../Hub/Inventory';
-import Map from '../Hub/Map';
+import Inventory from '../Inventory/Inventory';
+import Map from '../Map/Map';
 import Text from '../textThing/Text';
+import Rewards from "../Battle/Rewards";
+import IconInventory from "../Inventory/IconInventory";
 
 export default class NavigationShell extends Component {
 
@@ -17,7 +19,11 @@ export default class NavigationShell extends Component {
           // case 'map':
           //   return <Map />;
           case 'inventory':
-            return <Inventory inventoryItemDataObject={optProps} />;
+            return <Inventory inventoryItemDataObject={optProps} className="navigation-shell-internal-component"/>;
+          case 'inventory-test':
+            return <IconInventory inventoryItemDataObject={optProps} className="navigation-shell-internal-component"/>;
+          case 'rewardScreen':
+            return <Rewards propsObject={optProps} className="navigation-shell-internal-component"/>;
           // case 'text_thing':
           //   return <Text />;
           // case 'shop':

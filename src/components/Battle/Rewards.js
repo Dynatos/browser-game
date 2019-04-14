@@ -60,7 +60,7 @@ export default class Rewards extends Component {
     const experienceObject = this.props.propsObject.experienceObject;
 
     return (
-      <div className="reward-highest-parent" >
+      <div className={"reward-highest-parent " + this.props.className } >
 
         <div className="reward-gold-parent" >
           Gold: {newGold - oldGold}
@@ -83,12 +83,12 @@ export default class Rewards extends Component {
         {this.getItemDropDiv(randomItem)}
 
 
-        <a href="/inventory">
-          Inventory
-        </a>
-        <a href="/map">
-          Map
-        </a>
+        {/*<a href="/inventory">*/}
+          {/*Inventory*/}
+        {/*</a>*/}
+        {/*<a href="/map">*/}
+          {/*Map*/}
+        {/*</a>*/}
 
       </div>
     )

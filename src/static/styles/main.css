@@ -44,14 +44,6 @@ body {
     color:blue;
 }
 
-.navigation-shell-highest-parent {
-    height: 100%;
-    width: 100%;
-    display: flex;
-    flex-wrap: wrap;
-}
-
-
 
 
 
@@ -173,10 +165,24 @@ body {
     font-size: 24px;
 }
 
+
+
+
+
+/*this class encompasses the whole page when there is a top and left bar with character info and nav links*/
+.navigation-shell-highest-parent {
+    height: 100%;
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+}
+
+/*this class goes on the root node of any component that appears inside the 'nav shell' */
 .navigation-shell-internal-component {
     height: calc(100% - 54px);
     width: calc(100% - 145px);
-
+    display: flex;
+    flex-wrap: wrap;
 }
 
 
@@ -304,6 +310,22 @@ body {
 
 
 
+.inventory-icon-display--parent {
+    width: 50%;
+    height: 100%;
+    outline: 1px solid red;
+}
+
+.inventory-stat-display--parent {
+    width: 50%;
+    height: 100%;
+    outline: 1px solid lawngreen;
+}
+
+
+
+
+
 
 
 .battle-highest-parent {
@@ -360,8 +382,8 @@ body {
 
 
 .reward-highest-parent {
-    width: 100%;
-    height: 100%;
+    max-width: 100%;
+    max-height: 100%;
     display: flex;
     flex-direction: column;
     align-items: center;

@@ -68,29 +68,32 @@ export default class IconInventory extends Component {
 
     return (
       <div className="inventory-highest-parent navigation-shell-internal-component">
-        <div className="inventory-item-legend">
-          <p className="inventory-item-legend-item-name">
+
+        <div id="inventory" className="inventory-icon-display--parent">
+          {/*{renderItems(inventoryItems)}*/}asdf
+        </div>
+
+        <div className="inventory-stat-display--parent">
+          <p className="inventory-stat-display--item-name">
             Name
           </p>
-          <p className="inventory-item-legend-hand-style">
+          <p className="inventory-stat-display--hand-style">
             Hands
           </p>
-          <p className="inventory-item-legend-damage">
+          <p className="inventory-stat-display--damage">
             Damage
           </p>
-          <p className="inventory-item-legend-crit">
+          <p className="inventory-stat-display--crit">
             Crit
           </p>
-          <p className="inventory-item-legend-req">
+          <p className="inventory-stat-display--req">
             Level
           </p>
-          <p className="inventory-item-legend-equip">
+          <p className="inventory-stat-display--equip">
             Equip
           </p>
         </div>
-        <div id="inventory" className="inventory-item-container">
-          {renderItems(inventoryItems)}
-        </div>
+
       </div>
     );
   }
