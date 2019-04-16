@@ -3,3 +3,6 @@ html
         meta(name="viewport" content="width=device-width, initial-scale=1")
         title= title
         link(rel="stylesheet", href="/static/styles/main.css")
+        if (allItemStatData)
+            script(type="text/javascript")
+                !="window.allItemStatData = " + JSON.stringify(allItemStatData)

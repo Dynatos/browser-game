@@ -198,6 +198,7 @@ body {
 .inventory-item-container {
     /*overflow-y: scroll;*/
     height: 100%;
+    width: 100%;
     /*box-sizing: content-box;*/
     text-transform: capitalize;
     overflow: hidden;
@@ -308,18 +309,61 @@ body {
     overflow: hidden;
 }
 
-
-
-.inventory-icon-display--parent {
-    width: 50%;
+.inventory-item-icon-container {
+    width: 64%;
     height: 100%;
-    outline: 1px solid red;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    overflow-y: scroll;
+    border-right: 1px solid black;
 }
 
-.inventory-stat-display--parent {
-    width: 50%;
+.inventory-item-icon--image-parent {
+    width: 96px;
+    height: 96px;
+    padding: 2px;
+    border: 1px solid #333333;
+    background: #a6a6;
+}
+
+.inventory-item-icon--image {
+    width: 100%;
     height: 100%;
-    outline: 1px solid lawngreen;
+}
+
+.inventory-stat-display--highest-parent {
+    width: 36%;
+    height: 100%;
+    overflow: hidden;
+}
+
+.inventory-stat-display--alignment {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 0;
+}
+
+div.inventory-stat-display--parent div div {
+    margin: 0 auto;
+}
+
+.inventory-stat-display--image-container {
+    width: 90px;
+    height: 90px;
+}
+
+.inventory-stat-display--image {
+    width: 100%;
+    height: 100%;
+}
+
+.inventory-stat-display--item-name {
+    text-transform: capitalize;
 }
 
 
@@ -510,14 +554,99 @@ body {
 
 
 
-@media only screen and (min-width: 960px) {
+/*
+code to calculate width breakpoints for multiple item displays
+for (let i = 1; i < MAX_ROWS = 6; i++) {
+	const cur = (i * 96)
+	console.log(cur + (cur * 0.5625) + 20 + 154)
+}
+
+width  breakpoints [324, 474, 624, 774, 924, 1074, 1224, 1374, 1524, 1674]
+
+height breakpoints [150, 246, 342, 438, 534, 630,  726,  822,  918,  1014]
+
+height is just 54 + (96 * i)
+*/
+
+
+
+@media only screen and (max-width: 323px) {
     .game-window-root {
-        width: 960px;
+        width: 100%;
     }
 }
 
-@media only screen and (min-height: 600px) {
+@media only screen and (min-width: 324px) {
     .game-window-root {
-        height: 600px;
+        width: 100%;
+    }
+}
+
+@media only screen and (min-width: 474px) {
+    .game-window-root {
+        width: 474px;
+    }
+}
+
+@media only screen and (min-width: 624px) {
+    .game-window-root {
+        width: 624px;
+    }
+}
+
+@media only screen and (min-width: 774px) {
+    .game-window-root {
+        width: 774px;
+    }
+}
+
+@media only screen and (min-width: 924px) {
+    .game-window-root {
+        width: 924px;
+    }
+}
+
+
+
+
+@media only screen and (max-height: 245px) {
+    .game-window-root {
+        height: 100%;
+    }
+}
+
+@media only screen and (min-height: 246px) {
+    .game-window-root {
+        height: 100%;
+    }
+}
+
+@media only screen and (min-height: 342px) {
+    .game-window-root {
+        height: 342px;
+    }
+}
+
+@media only screen and (min-height: 438px) {
+    .game-window-root {
+        height: 438px;
+    }
+}
+
+@media only screen and (min-height: 534px) {
+    .game-window-root {
+        height: 534px;
+    }
+}
+
+@media only screen and (min-height: 630px) {
+    .game-window-root {
+        height: 630px;
+    }
+}
+
+@media only screen and (min-height: 726px) {
+    .game-window-root {
+        height: 822px;
     }
 }

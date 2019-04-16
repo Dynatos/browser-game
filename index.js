@@ -103,11 +103,11 @@ class DatabaseClient {
 
 
 
-  loginPlayer(usernameFromLogin, passwordFromLogin, callback) {
+  verifyLogin(usernameFromLogin, passwordFromLogin, callback) {
     this.db.query(
       `SELECT * FROM characters WHERE username = ? AND password = ?`,
       [usernameFromLogin, passwordFromLogin],
-      createSqlCallbackHandler('Error during loginPlayer when fetching from characters using Username and Password', logger, callback)
+      createSqlCallbackHandler('Error during verifyLogin when fetching from characters using Username and Password', logger, callback)
     );
   }
 
@@ -208,6 +208,13 @@ class DatabaseClient {
     );
   }
 
+  getAllItemIDs(callback) {
+    this.db.query(
+      `SELECT id FROM items`,
+      createSqlCallbackHandler('Error getting all item IDs', logger, callback)
+    )
+  }
+
   getItemNameFromID(itemID, callback) {
     this.db.query(
       `SELECT name FROM items WHERE id=?`,
@@ -247,6 +254,36 @@ class DatabaseClient {
       [newExperience, newGold, playerID],
       createSqlCallbackHandler('Error updating player experience and gold', logger, callback)
     );
+  }
+
+  setAllWeaponsUnequipped(playerID, callback) {
+    this.db.query(
+      `UPDATE inventory SET equipped = 0 WHERE character_id = ?`,
+      [playerID],
+      createSqlCallbackHandler('Error setting equipped weapon to unequipped', logger, callback)
+    )
+  }
+
+  setEquippedWeapon(playerID, weaponID, callback) {
+    this.db.query(
+      `UPDATE inventory SET equipped = 1 WHERE character_id = ? AND item_id = ? LIMIT 1`,
+      [playerID, weaponID],
+      createSqlCallbackHandler('Error setting equipped weapon', logger, callback)
+    )
+  }
+
+  setAllWeaponsUnequippedAndSetEquippedWeapon(username, weaponIDToEquip, cb) {
+    async.auto({
+      characterID: (callback) => this.getCharacterByUsername(username, callback),
+      unequipWeapon: ['characterID', (results, callback) => this.setAllWeaponsUnequipped(results.characterID[0].id, callback)],
+      equippedWeaponID: ['characterID', (results, callback) => this.getEquippedWeaponByCharacterID(results.characterID[0].id, callback)],
+      setNewEquipped: ['equippedWeaponID', (results, callback) => this.setEquippedWeapon(results.characterID[0].id, weaponIDToEquip, callback)]
+    }, (err) => {
+      if (err) {
+        handleDatabaseQueryError(err, 'Error setting equipped weapon to unequipped and setting new equipped weapon', logger, callback)
+      }
+      cb(null)
+    })
   }
 
   getExperienceAndLevelObject(playerID, experienceGained = null, callback) {
@@ -333,27 +370,27 @@ class DatabaseClient {
 
   getInventoryData(username, cb) {
 
-    const itemIDs = [];
+    const itemIDs = []; // stores all IDs that need to have stat data retrieved, requires this scope for cb call
 
     async.auto({
-      getUserID: (callback) => this.getCharacterByUsername(username, callback),
-      getInventoryItems: ['getUserID', (results, callback) => {
-        //console.log('get inventory: ', JSON.stringify(results)); TODO remove
-        this.getAllItemsInUserInventory(results.getUserID[0].id, callback);
-      }],
-      getItemStats: ['getInventoryItems', (results, callback) => {
+        getUserID: (callback) => this.getCharacterByUsername(username, callback),
+        getInventoryItems: ['getUserID', (results, callback) => {
+          //console.log('get inventory: ', JSON.stringify(results)); TODO remove
+          this.getAllItemsInUserInventory(results.getUserID[0].id, callback);
+        }],
+        getItemStats: ['getInventoryItems', (results, callback) => {
 
-        const itemArray = results.getInventoryItems;
+          const itemArray = results.getInventoryItems;
 
-        if (itemArray.length) {
-          itemArray.forEach((currentItem) => {
-            itemIDs.push(currentItem.item_id);
-          });
-          this.getItemStats(itemIDs, callback)
-        } else {
-          callback(null, results)
-        }
-      }]
+          if (itemArray.length) {
+            itemArray.forEach((currentItem) => {
+              itemIDs.push(currentItem.item_id);
+            });
+            this.getItemStats(itemIDs, callback)
+          } else {
+            callback(null, results)
+          }
+        }]
       }, (err, results) => {
         if (err) {
           handleDatabaseQueryError(err, 'Error getting inventory data', logger, callback);
@@ -362,6 +399,40 @@ class DatabaseClient {
 
         cb(null, {
           itemIDs: itemIDs || [],
+          itemData: results.getItemStats || []
+        })
+      }
+
+    );
+
+  }
+
+  getAllInventoryData(username, cb) {
+
+    async.auto({
+        getUserID: (callback) => this.getCharacterByUsername(username, callback),
+        getInventoryItems: ['getUserID', (results, callback) => {
+          //console.log('get inventory: ', JSON.stringify(results)); TODO remove
+          this.getAllItemsInUserInventory(results.getUserID[0].id, callback);
+        }],
+        allItemIDs: (callback) => this.getAllItemIDs(callback),
+        getItemStats: ['getInventoryItems', (results, callback) => {
+
+          if (results.getInventoryItems.length) {
+            const itemIDs = results.allItemIDs.map(e => e.id);
+            this.getItemStats(itemIDs, callback)
+          } else {
+            callback(null, results)
+          }
+        }]
+      }, (err, results) => {
+        if (err) {
+          handleDatabaseQueryError(err, 'Error getting inventory data', logger, callback);
+          return
+        }
+
+        cb(null, {
+          itemIDs: results.getInventoryItems || [],
           itemData: results.getItemStats || []
         })
       }
@@ -502,11 +573,12 @@ app.use(cookieSession({
 
 
 // used to render pages with templates, makes templates opt-in. Also allows for easy script insertion
-function renderWithTemplate (res, componentToRender, title = 'JLand', templateToRender = 'template', scriptSource) {
+function renderWithTemplate (res, componentToRender, title = 'JLand', templateToRender = 'template', scriptSource, allItemStatData) {
   return res.render(templateToRender, {
     reactData: ReactDOM.renderToStaticMarkup(componentToRender),
     title: title,
-    scriptSource: scriptSource
+    scriptSource: scriptSource,
+    allItemStatData: allItemStatData
   })
 }
 
@@ -623,7 +695,7 @@ function handleDatabaseQueryError(err, errorText, logger, callback) {
 // TODO: remove commented console statements when no longer necessary or update to logger calls
 
 function renderWithNavigationShell(res, username, componentToRender, pageTitle, templateToRender = 'template',
-                                   scriptSource, optProps) {
+                                   scriptSource, optProps, allItemStatData) {
   async.auto({
     getUserID: (callback) => dbQueries.getCharacterByUsername(username, callback),
     getUserData: ['getUserID', (results, callback) => dbQueries.getCharacterDataByID(results.getUserID[0].id, callback)]
@@ -647,7 +719,7 @@ function renderWithNavigationShell(res, username, componentToRender, pageTitle, 
       <NavigationShell userData={userDataObject} componentToRender={componentToRender} optProps={optProps} /> :
       <NavigationShell userData={userDataObject} componentToRender={componentToRender} />;
 
-    return renderWithTemplate(res, componentWithData, pageTitle, templateToRender, scriptSource);
+    return renderWithTemplate(res, componentWithData, pageTitle, templateToRender, scriptSource, allItemStatData);
   });
 }
 
@@ -801,7 +873,7 @@ class Controllers {
   
   createLoginController() {
     //const db = this.db;
-    // May have previously been used for db.loginPlayer call, updated to dbQueries.loginPlayer
+    // May have previously been used for db.verifyLogin call, updated to dbQueries.verifyLogin
     return function loginController(req, res) {
       const failedLoginPage = <LoginPage failedLogin={{display:'default'}} />;
       const usernameFromLogin = req.body.username;
@@ -824,7 +896,7 @@ class Controllers {
         }
       }
       
-      dbQueries.loginPlayer(usernameFromLogin, passwordFromLogin, onLoginQueryFinished);
+      dbQueries.verifyLogin(usernameFromLogin, passwordFromLogin, onLoginQueryFinished);
     };
   }
   
@@ -897,61 +969,6 @@ app.get('/map', (req, res) => {
   renderWithNavigationShell(res, username, 'map', `Onward into battle, ${username}`);
 });
 
-app.get('/inventory', (req, res) => {
-  const username = req.signedCookies.username;
-
-  dbQueries.getInventoryData(username, (err, results) => {
-    if (err) {
-      res.sendStatus(500);
-    }
-
-    if (results.itemData.length) {
-      renderWithNavigationShell(res, username, 'inventory', `${username}'s nice things`, 'template', '',
-        {results: results.itemData, itemIDs: results.itemIDs});
-    } else {
-      renderWithNavigationShell(res, username, 'inventory', `${username}'s nice things`, 'template', '',
-        {results: [], itemIDs: []});
-    }
-
-  });
-
-});
-
-app.get('/inventory_test', (req, res) => {
-  const username = req.signedCookies.username;
-
-  dbQueries.getInventoryData(username, (err, results) => {
-    if (err) {
-      res.sendStatus(500);
-    }
-
-    if (results.itemData.length) {
-      renderWithNavigationShell(res, username, 'inventory-test', `${username}'s nice things`, 'template', '',
-        {results: results.itemData, itemIDs: results.itemIDs});
-    } else {
-      renderWithNavigationShell(res, username, 'inventory-test', `${username}'s nice things`, 'template', '',
-        {results: [], itemIDs: []});
-    }
-
-  });
-
-});
-
-// when /shop is requested: redirects to /inventory
-// TODO: add shop page
-app.get('/shop', (req, res) => {
-  const username = req.signedCookies.username;
-  res.redirect(302, '/inventory');
-});
-
-// when /logout is requested: overwrites username cookie to prevent malicious requests, deletes current session,
-// redirects to homepage
-app.get('/logout', (req, res) => {
-  res.cookie('username', null);
-  delete res.session;
-  res.redirect(302, '/');
-});
-
 // when /zone/enchanted_forest is requested: renders zone battle page
 app.get('/zone/enchanted_forest', (req, res) => {
   const username = req.signedCookies.username;
@@ -975,42 +992,114 @@ app.post('/battle_attack_post' , (req, res) => {
       const { enemy_id, player_weapon_id, player_health, enemy_health, name } = results[0];
       const currentZoneURL = '/zone/' + name.replace(' ', '_');
       handlePlayerAttack(userData.userID, enemy_id, player_weapon_id, player_health, enemy_health,
-      (err, isBattleComplete, didPlayerLose, results) => {
-        if (err) {
-          logger.error('Error getting zone name', {
-            err
-          });
-          res.sendStatus(500);
-          return;
-        }
-        if (isBattleComplete && didPlayerLose) {
-          renderWithTemplate(res, <LostBattle />, 'Oh dear you lost', 'only-react-component');
-          return;
-        }
-        if (isBattleComplete && !didPlayerLose) {
-          const propsObject = {
-            ...results,
-            experienceObject: experience,
-            expGained: results.updateExperienceAndGold.newExp - results.updateExperienceAndGold.oldExp
-          };
+        (err, isBattleComplete, didPlayerLose, results) => {
+          if (err) {
+            logger.error('Error getting zone name', {
+              err
+            });
+            res.sendStatus(500);
+            return;
+          }
+          if (isBattleComplete && didPlayerLose) {
+            renderWithTemplate(res, <LostBattle />, 'Oh dear you lost', 'only-react-component');
+            return;
+          }
+          if (isBattleComplete && !didPlayerLose) {
+            const propsObject = {
+              ...results,
+              experienceObject: experience,
+              expGained: results.updateExperienceAndGold.newExp - results.updateExperienceAndGold.oldExp
+            };
 
-          dbQueries.getExperienceAndLevelObject(userData.userID, propsObject.expGained, (err, results) => {
-            if (err) {
-              res.sendStatus(500);
-            }
-            propsObject.experienceAndLevelObject = results;
+            dbQueries.getExperienceAndLevelObject(userData.userID, propsObject.expGained, (err, results) => {
+              if (err) {
+                res.sendStatus(500);
+              }
+              propsObject.experienceAndLevelObject = results;
 
-            renderWithNavigationShell(res, userData.username, "rewardScreen", 'Success!', 'template', null, propsObject);
-          });
-          return;
-        }
-        res.redirect(currentZoneURL); // reloads the page which gets fresh data from db
-        // TODO could be heavily optimized to hot-load new state with json endpoints, but that drastically changes the structure of the app
-      });
+              renderWithNavigationShell(res, userData.username, "rewardScreen", 'Success!', 'template', null, propsObject);
+            });
+            return;
+          }
+          res.redirect(currentZoneURL); // reloads the page which gets fresh data from db
+          // TODO could be heavily optimized to hot-load new state with json endpoints, but that drastically changes the structure of the app
+        });
     })
 
   });
 
+});
+
+app.get('/inventory', (req, res) => {
+  const username = req.signedCookies.username;
+
+  dbQueries.getInventoryData(username, (err, results) => {
+    if (err) {
+      res.sendStatus(500);
+    }
+
+    if (results.itemData.length) {
+      renderWithNavigationShell(res, username, 'inventory', `${username}'s nice things`, 'template', '',
+        {results: results.itemData, itemIDs: results.itemIDs});
+    } else {
+      renderWithNavigationShell(res, username, 'inventory', `${username}'s nice things`, 'template', '',
+        {results: [], itemIDs: []});
+    }
+
+  });
+
+});
+
+app.get('/inventory_test', (req, res) => {
+  const username = req.signedCookies.username;
+
+  dbQueries.getAllInventoryData(username, (err, results) => {
+    if (err) {
+      res.sendStatus(500);
+    }
+
+    console.log('hopefully tru', results.itemData.length);
+    console.log('new data', results.itemData);
+
+    if (results.itemData.length) {
+      renderWithNavigationShell(res, username, 'inventory-test', `${username}'s nice things`, 'template', '',
+        {results: results.itemData, itemIDs: results.itemIDs}, JSON.stringify(results.itemData));
+    } else {
+      renderWithNavigationShell(res, username, 'inventory-test', `${username}'s nice things`, 'template', '',
+        {results: [], itemIDs: []});
+    }
+
+  });
+
+});
+
+app.post('/equip_weapon', (req, res) => {
+  const username = req.signedCookies.username;
+  const weaponIDToEquip = req.body.equip;
+
+  dbQueries.setAllWeaponsUnequippedAndSetEquippedWeapon(username, weaponIDToEquip, (err) => {
+    if (err) {
+      res.sendStatus(500);
+    }
+
+    res.redirect(302, '/inventory');
+
+  })
+});
+
+// when /shop is requested: redirects to /inventory
+// TODO: add shop page
+app.get('/shop', (req, res) => {
+  const username = req.signedCookies.username;
+  res.redirect(302, '/inventory');
+});
+
+// when /logout is requested: overwrites username cookie to prevent malicious requests, deletes current session,
+// redirects to homepage
+app.get('/logout', (req, res) => {
+  res.cookie('username', null);
+  delete res.session;
+  res.redirect(302, '/');
 });
 
 
