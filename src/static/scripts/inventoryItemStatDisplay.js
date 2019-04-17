@@ -1,6 +1,12 @@
-import react from 'react';
-const itemStatDisplayContainer = document.querySelector("inventory-stat-display--highest-parent");
-const itemIconContainer = document.querySelector("inventory-item-icon-container");
+const inventoryItemIconContainer = document.querySelector(".inventory-item-icon-container");
+const statDisplayImage = document.querySelector(".inventory-stat-display--image");
+const statDisplayItemName = document.querySelector(".inventory-stat-display--item-name");
+const statDisplayDamage = document.querySelector(".inventory-stat-display--damage");
+const statDisplayHands = document.querySelector(".inventory-stat-display--hand-style");
+const statDisplayCrit = document.querySelector(".inventory-stat-display--critical-chance");
+const statDisplayRequiredLevel = document.querySelector(".inventory-stat-display--req");
+//const statDisplaySellValue = document.querySelector(".inventory-stat-display--sell-value");
+const weaponDataLookup = JSON.parse(allItemStatData);
 
 function getImagePath(itemID) {
   return { //TODO update to production values
@@ -12,81 +18,22 @@ function getImagePath(itemID) {
   }[itemID]
 }
 
-function renderStatDisplay(weaponID) {
-  const itemData = [];
-  const imageElement = react.createElement('img');
-  imageElement.className = "inventory-stat-display--image";
-  imageElement.src = getImagePath(weaponID);
-  imageElement.alt = "Weapon icon";
+function updateStatDisplay(weaponID) {
 
-  const newStatDisplay = (
-    <div className="inventory-stat-display--alignment">
+  const itemData = weaponDataLookup[weaponID - 1]; // itemIDs are index from 1 but the lookup starts at 0
 
-      <div className="inventory-stat-display--image-container">
-        {imageElement}
-        {/*<img className="inventory-stat-display--image" src={getImagePath(weaponID)} alt="item icon" />*/}
-      </div>
+  statDisplayImage.src               = getImagePath(weaponID);
+  statDisplayItemName.innerText      = itemData.name;
+  statDisplayDamage.innerText        = `Damage: ${itemData.min_melee_damage}-${itemData.max_melee_damage}`;
+  statDisplayHands.innerText         = (itemData.two_handed ? "2" : "1") +  " Handed";
+  statDisplayCrit.innerText          = `Critical chance: ${itemData.crit_chance}%`;
+  statDisplayRequiredLevel.innerText = `Required level: ${itemData.level_requirement}`;
+  //statDisplaySellValue.innerText     =
 
-      <div className="inventory-stat-display--item-name">
-        {itemData.name}
-      </div>
-      <div className="inventory-stat-display--damage">
-        Damage: {`${itemData.min_melee_damage}-${itemData.max_melee_damage}`}
-      </div>
-      <div className="inventory-stat-display--hand-style">
-        {itemData.two_handed ? "2" : "1"} Handed
-      </div>
-      <div className="inventory-stat-display--critical-chance">
-        Critical chance: {itemData.crit_chance}%
-      </div>
-      <div className="inventory-stat-display--req">
-        Required level: {itemData.level_requirement}
-      </div>
-      <div className="inventory-stat-display--sell-value">
-        Sell value
-      </div>
-      <form method="POST" action="/equip_weapon" className="inventory-stat-display--equip">
-        <button type="submit" name="equip" value={id} >Equip</button>
-      </form>
-
-    </div>
-  );
-
-  // return (
-  //   <div className="inventory-stat-display--parent">
-  //
-  //     <div className="inventory-stat-display--image-container">
-  //       <img className="inventory-stat-display--image" src={getImagePath(1)} alt="item icon" />
-  //     </div>
-  //
-  //     <div className="inventory-stat-display--item-name">
-  //       Name
-  //     </div>
-  //
-  //     <div className="inventory-stat-display--damage">
-  //       Damage
-  //     </div>
-  //
-  //     <div className="inventory-stat-display--hand-style">
-  //       Hands
-  //     </div>
-  //
-  //     <div className="inventory-stat-display--critical-chance">
-  //       Critical chance
-  //     </div>
-  //
-  //     <div className="inventory-stat-display--req">
-  //       Level
-  //     </div>
-  //
-  //     <div className="inventory-stat-display--sell-value">
-  //       Sell value
-  //     </div>
-  //
-  //     <div className="inventory-stat-display--equip">
-  //       Equip
-  //     </div>
-  //
-  //   </div>
-  // )
 }
+
+// event delegation is used for this click handling. Rather than assigning an onClick handler for each item element
+// we simply assign it to the container and use event.target to determine what was clicked
+inventoryItemIconContainer.addEventListener('click', (event) => {
+  updateStatDisplay(event.target.getAttribute('data-weaponid'));
+});

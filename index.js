@@ -1058,11 +1058,9 @@ app.get('/inventory_test', (req, res) => {
       res.sendStatus(500);
     }
 
-    console.log('hopefully tru', results.itemData.length);
-    console.log('new data', results.itemData);
-
     if (results.itemData.length) {
-      renderWithNavigationShell(res, username, 'inventory-test', `${username}'s nice things`, 'template', '',
+      renderWithNavigationShell(res, username, 'inventory-test', `${username}'s nice things`,
+        'template', '/static/scripts/inventoryItemStatDisplay.js',
         {results: results.itemData, itemIDs: results.itemIDs}, JSON.stringify(results.itemData));
     } else {
       renderWithNavigationShell(res, username, 'inventory-test', `${username}'s nice things`, 'template', '',

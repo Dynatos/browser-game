@@ -38,14 +38,15 @@ function renderItems(itemIDLookupTable, itemIDs) {
   ) {
     // each ID (including duplicates) represents an element that we need to render
     itemIDs.forEach((currentItemObject, index) => {
-      const currentItemData = itemIDLookupTable[currentItemID]; // elm is current itemID, inventoryItems is item lookup table
       const currentItemID = currentItemObject.item_id;
+      // const currentItemData = itemIDLookupTable[currentItemID];
       const currentElement = (
-        <div key={`inventory-item-index-${index}`}
-             className="inventory-item-icon--image-parent"
-             data-weaponid={currentItemID}>
+        <div key={`inventory-item-index-${index}`} className="inventory-item-icon--image-parent">
 
-          <img className="inventory-item-icon--image" src={getImagePath(currentItemID)} alt="item icon" />
+          <img className="inventory-item-icon--image"
+               src={getImagePath(currentItemID)}
+               alt="item icon"
+               data-weaponid={currentItemID} />
 
         </div>
       );
