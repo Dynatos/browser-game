@@ -35,6 +35,11 @@ export default class LeftNavBar extends Component {
               </a>
             </div>
           )})}
+        <div className="left-navbar-toggle-visible--container">
+          <div className="left-navbar-toggle-visible--middle-alignment">
+            <div id="hide-left-nav--button" className="left-navbar-toggle-visible--button">{"<"}</div>
+          </div>
+        </div>
       </div>
     )
   }

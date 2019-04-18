@@ -4,6 +4,7 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
+    min-width: 320px;
 }
 
 * {
@@ -124,11 +125,14 @@ body {
     width: 145px;
     background-color: #999999;
     border-right: 1px solid #333333;
+    display: flex;
+    flex-direction: column;
+    align-content: baseline;
 }
 
 .left-navbar-element {
-    height: 72px;
-    width: auto;
+    height: 66px;
+    width: 100%;
     background-color: #666666;
     border-bottom: 1px solid #333333;
     border-top: 1px solid #333333;
@@ -163,6 +167,28 @@ body {
     text-decoration: none;
     color: black;
     font-size: 24px;
+}
+
+.left-navbar-toggle-visible--container {
+    float: right;
+    width: 100%;
+    display: flex;
+    flex-grow: 1;
+}
+
+.left-navbar-toggle-visible--middle-alignment {
+    margin: auto 0 auto auto;
+    height: 40px;
+    width: 40px;
+}
+
+.left-navbar-toggle-visible--button {
+    width: 80%;
+    align-self: flex-end;
+    margin: auto -2px 0 auto;
+    font-size: 32px;
+    border: 1px solid;
+    border-radius: 10%;
 }
 
 
@@ -340,11 +366,11 @@ body {
 
 .inventory-stat-display--alignment {
     width: 100%;
+    min-height: 320px;
     height: 100%;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    align-items: center;
     padding: 4px 0;
 }
 
@@ -376,35 +402,47 @@ div.inventory-stat-display--parent div div {
     width: 100%;
     height: 100%;
     overflow: hidden;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
 }
 
 .battle-alignment {
-    height: 50%;
     width: 100%;
-    margin-top: 16%;
+    height: 90%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 }
 
 .battle-player-image {
     width: 128px;
     height: 256px;
-    float: left;
 }
 
 .battle-enemy-image {
     width: 128px;
     height: 256px;
-    float: right;
 }
 
 .battle-attack--form {
-
+    height: 36px;
+    width: 100%;
+    background: #aaa;
+    margin: 0;
 }
 
 .battle-attack--button {
-    height: 30px;
     width: 80px;
-    margin: 25% auto 0;
+    height: 30px;
+    margin: 3px;
 }
+
+
+
+
+
+
 
 .battle-lost--highest-parent {
 
@@ -570,39 +608,77 @@ height is just 54 + (96 * i)
 
 
 
+
+
+
+
 @media only screen and (max-width: 323px) {
     .game-window-root {
-        width: 100%;
+        min-width: 324px;
+        width: 100vw;
     }
 }
 
 @media only screen and (min-width: 324px) {
     .game-window-root {
-        width: 100%;
+        min-width: 324px;
+        width: 100vw;
+    }
+}
+
+@media only screen and (max-width: 448px) {
+    .inventory-item-icon-container {
+        width: 120px;
+    }
+    .inventory-stat-display--highest-parent {
+        width: calc(100% - 120px);
+    }
+}
+
+@media only screen and (min-width: 449px) {
+    .inventory-item-icon-container {
+        width: 240px;
+    }
+    .inventory-stat-display--highest-parent {
+        width: calc(100% - 240px);
     }
 }
 
 @media only screen and (min-width: 474px) {
     .game-window-root {
-        width: 474px;
+        min-width: 474px;
+        width: 100vw;
+    }
+    .inventory-item-icon-container {
+        width: 60%;
+    }
+    .inventory-stat-display--highest-parent {
+        width: 40%;
     }
 }
 
 @media only screen and (min-width: 624px) {
     .game-window-root {
-        width: 624px;
+        min-width: 624px;
+        width: 100vw;
+    }
+
+    .inventory-stat-display--alignment {
+        align-items: center;
     }
 }
 
 @media only screen and (min-width: 774px) {
     .game-window-root {
-        width: 774px;
+        min-width: 774px;
+        width: 100vw;
     }
 }
 
 @media only screen and (min-width: 924px) {
     .game-window-root {
-        width: 924px;
+        min-width: 924px;
+        width: 100vw;
     }
 }
 
@@ -611,42 +687,54 @@ height is just 54 + (96 * i)
 
 @media only screen and (max-height: 245px) {
     .game-window-root {
-        height: 100%;
+        height: 100vh;
     }
 }
 
 @media only screen and (min-height: 246px) {
     .game-window-root {
-        height: 100%;
+        height: 100vh;
     }
 }
 
 @media only screen and (min-height: 342px) {
     .game-window-root {
-        height: 342px;
+        min-height: 342px;
+        height: 100vh;
     }
 }
 
 @media only screen and (min-height: 438px) {
     .game-window-root {
-        height: 438px;
+        min-height: 438px;
+        height: 100vh;
     }
 }
 
 @media only screen and (min-height: 534px) {
     .game-window-root {
-        height: 534px;
+        min-height: 534px;
+        height: 100vh;
     }
 }
 
 @media only screen and (min-height: 630px) {
     .game-window-root {
-        height: 630px;
+        min-height: 630px;
+        height: 100vh;
     }
 }
 
-@media only screen and (min-height: 726px) {
-    .game-window-root {
-        height: 822px;
-    }
-}
+/*@media only screen and (min-height: 726px) {*/
+    /*.game-window-root {*/
+        /*min-height: 726px;*/
+        /*height: 100vh;*/
+    /*}*/
+/*}*/
+
+/*@media only screen and (min-height: 822px) {*/
+    /*.game-window-root {*/
+        /*min-height: 822px;*/
+        /*height: 100vh;*/
+    /*}*/
+/*}*/
