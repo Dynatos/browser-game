@@ -1059,32 +1059,32 @@ app.post('/battle_attack_post' , (req, res) => {
 
 });
 
+// app.get('/inventory', (req, res) => {
+//   const username = req.signedCookies.username;
+//
+//   dbQueries.getInventoryData(username, (err, results) => {
+//     if (err) {
+//       res.sendStatus(500);
+//     }
+//     const renderPreferences = {
+//       templateToRender: 'template',
+//       pageTitle: `${username}'s nice things`,
+//       scriptSource: '',
+//       optProps: results.itemData ? {results: results.itemData, itemIDs: results.itemIDs} : {results: [], itemIDs: []},
+//       allItemStatData: null,
+//       navbarScriptSource: '/static/scripts/hideNavBar.js'
+//     };
+//     if (results.itemData.length) {
+//       renderWithNavigationShell(res, username, 'inventory', renderPreferences);
+//     } else {
+//       renderWithNavigationShell(res, username, 'inventory', renderPreferences);
+//     }
+//
+//   });
+//
+// });
+
 app.get('/inventory', (req, res) => {
-  const username = req.signedCookies.username;
-
-  dbQueries.getInventoryData(username, (err, results) => {
-    if (err) {
-      res.sendStatus(500);
-    }
-    const renderPreferences = {
-      templateToRender: 'template',
-      pageTitle: `${username}'s nice things`,
-      scriptSource: '',
-      optProps: results.itemData ? {results: results.itemData, itemIDs: results.itemIDs} : {results: [], itemIDs: []},
-      allItemStatData: null,
-      navbarScriptSource: '/static/scripts/hideNavBar.js'
-    };
-    if (results.itemData.length) {
-      renderWithNavigationShell(res, username, 'inventory', renderPreferences);
-    } else {
-      renderWithNavigationShell(res, username, 'inventory', renderPreferences);
-    }
-
-  });
-
-});
-
-app.get('/inventory_test', (req, res) => {
   const username = req.signedCookies.username;
 
   dbQueries.getAllInventoryData(username, (err, results) => {

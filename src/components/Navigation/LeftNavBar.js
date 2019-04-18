@@ -9,10 +9,10 @@ const navData = [
     display: "Inventory",
     linkTo: "/inventory"
   },
-  {
-    display: "TEST INV",
-    linkTo: "/inventory_test"
-  },
+  // {
+  //   display: "TEST INV",
+  //   linkTo: "/inventory_test"
+  // },
   {
     display: "Shop",
     linkTo: "/shop"
