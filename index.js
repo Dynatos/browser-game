@@ -573,12 +573,14 @@ app.use(cookieSession({
 
 
 // used to render pages with templates, makes templates opt-in. Also allows for easy script insertion
-function renderWithTemplate (res, componentToRender, title = 'JLand', templateToRender = 'template', scriptSource, allItemStatData) {
+function renderWithTemplate (res, componentToRender, title = 'JLand', templateToRender = 'template', scriptSource,
+                             allItemStatData, navbarScriptSource) {
   return res.render(templateToRender, {
     reactData: ReactDOM.renderToStaticMarkup(componentToRender),
     title: title,
     scriptSource: scriptSource,
-    allItemStatData: allItemStatData
+    allItemStatData: allItemStatData,
+    navbarScriptSource: navbarScriptSource
   })
 }
 
@@ -693,9 +695,19 @@ function handleDatabaseQueryError(err, errorText, logger, callback) {
 
 // render component inside 'character data top bar' and 'navigation left bar'
 // TODO: remove commented console statements when no longer necessary or update to logger calls
+// const renderPreferences = {
+//   templateToRender: template || 'template',
+//   pageTitle: title ||'JLand',
+//   scriptSource: scriptSource || '',
+//   optProps: optProps || null,
+//   allItemStatData: allItemStatData,
+//   navbarScriptSource: '/src/static/scripts/hideNavBar.js'
+// };
 
-function renderWithNavigationShell(res, username, componentToRender, pageTitle, templateToRender = 'template',
-                                   scriptSource, optProps, allItemStatData) {
+function renderWithNavigationShell(res, username, componentToRender, renderPreferences//, pageTitle, templateToRender = 'template', scriptSource, optProps, allItemStatData, navbarScriptSource
+) {
+  const { pageTitle, scriptSource, optProps, allItemStatData, navbarScriptSource } = renderPreferences;
+  const templateToRender = renderPreferences.templateToRender || 'template';
   async.auto({
     getUserID: (callback) => dbQueries.getCharacterByUsername(username, callback),
     getUserData: ['getUserID', (results, callback) => dbQueries.getCharacterDataByID(results.getUserID[0].id, callback)]
@@ -719,7 +731,7 @@ function renderWithNavigationShell(res, username, componentToRender, pageTitle, 
       <NavigationShell userData={userDataObject} componentToRender={componentToRender} optProps={optProps} /> :
       <NavigationShell userData={userDataObject} componentToRender={componentToRender} />;
 
-    return renderWithTemplate(res, componentWithData, pageTitle, templateToRender, scriptSource, allItemStatData);
+    return renderWithTemplate(res, componentWithData, pageTitle, templateToRender, scriptSource, allItemStatData, navbarScriptSource);
   });
 }
 
@@ -966,7 +978,15 @@ app.post('/signup/post', controllers.createSignupPostController());
 // when /map is requested: renders map page
 app.get('/map', (req, res) => {
   const username = req.signedCookies.username;
-  renderWithNavigationShell(res, username, 'map', `Onward into battle, ${username}`);
+  const renderPreferences = {
+    templateToRender: 'template',
+    pageTitle: `Onward into battle, ${username}`,
+    scriptSource: null,
+    optProps: null,
+    allItemStatData: null,
+    navbarScriptSource: null
+  };
+  renderWithNavigationShell(res, username, 'map', renderPreferences);
 });
 
 // when /zone/enchanted_forest is requested: renders zone battle page
@@ -1017,7 +1037,16 @@ app.post('/battle_attack_post' , (req, res) => {
               }
               propsObject.experienceAndLevelObject = results;
 
-              renderWithNavigationShell(res, userData.username, "rewardScreen", 'Success!', 'template', null, propsObject);
+              const renderPreferences = {
+                templateToRender: 'template',
+                pageTitle: 'Success!',
+                scriptSource: null,
+                optProps: propsObject || null,
+                allItemStatData: null,
+                navbarScriptSource: null
+              };
+
+              renderWithNavigationShell(res, userData.username, "rewardScreen", renderPreferences);
             });
             return;
           }
@@ -1037,13 +1066,18 @@ app.get('/inventory', (req, res) => {
     if (err) {
       res.sendStatus(500);
     }
-
+    const renderPreferences = {
+      templateToRender: 'template',
+      pageTitle: `${username}'s nice things`,
+      scriptSource: '',
+      optProps: results.itemData ? {results: results.itemData, itemIDs: results.itemIDs} : {results: [], itemIDs: []},
+      allItemStatData: null,
+      navbarScriptSource: '/static/scripts/hideNavBar.js'
+    };
     if (results.itemData.length) {
-      renderWithNavigationShell(res, username, 'inventory', `${username}'s nice things`, 'template', '',
-        {results: results.itemData, itemIDs: results.itemIDs});
+      renderWithNavigationShell(res, username, 'inventory', renderPreferences);
     } else {
-      renderWithNavigationShell(res, username, 'inventory', `${username}'s nice things`, 'template', '',
-        {results: [], itemIDs: []});
+      renderWithNavigationShell(res, username, 'inventory', renderPreferences);
     }
 
   });
@@ -1057,14 +1091,19 @@ app.get('/inventory_test', (req, res) => {
     if (err) {
       res.sendStatus(500);
     }
+    const renderPreferences = {
+      templateToRender: 'template',
+      pageTitle: `${username}'s nice things`,
+      scriptSource: '/static/scripts/inventoryItemStatDisplay.js',
+      optProps: results.itemData ? {results: results.itemData, itemIDs: results.itemIDs} : {results: [], itemIDs: []},
+      allItemStatData: JSON.stringify(results.itemData),
+      navbarScriptSource: '/static/scripts/hideNavBar.js'
+    };
 
     if (results.itemData.length) {
-      renderWithNavigationShell(res, username, 'inventory-test', `${username}'s nice things`,
-        'template', '/static/scripts/inventoryItemStatDisplay.js',
-        {results: results.itemData, itemIDs: results.itemIDs}, JSON.stringify(results.itemData));
+      renderWithNavigationShell(res, username, 'inventory-test', renderPreferences);
     } else {
-      renderWithNavigationShell(res, username, 'inventory-test', `${username}'s nice things`, 'template', '',
-        {results: [], itemIDs: []});
+      renderWithNavigationShell(res, username, 'inventory-test', renderPreferences);
     }
 
   });
@@ -1104,7 +1143,15 @@ app.get('/logout', (req, res) => {
 //TODO: remove, was added because architecture was already set up and I wanted to test this out
 app.get('/text_thing', (req, res) => {
   const username = req.signedCookies.username;
-  renderWithNavigationShell(res, username, 'text_thing', 'Text Typing!', 'template', '/static/scripts/textThing.js');
+  const renderPreferences = {
+    templateToRender: 'template',
+    pageTitle: 'Text Typing!',
+    scriptSource: '/static/scripts/textThing.js',
+    optProps: results.itemData ? {results: results.itemData, itemIDs: results.itemIDs} : {results: [], itemIDs: []},
+    allItemStatData: JSON.stringify(results.itemData),
+    navbarScriptSource: null
+  };
+  renderWithNavigationShell(res, username, 'text_thing', renderPreferences);
 });
 
 

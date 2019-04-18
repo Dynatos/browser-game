@@ -662,9 +662,14 @@ height is just 54 + (96 * i)
         min-width: 624px;
         width: 100vw;
     }
-
     .inventory-stat-display--alignment {
         align-items: center;
+    }
+    .inventory-item-icon-container {
+        width: 64%;
+    }
+    .inventory-stat-display--highest-parent {
+        width: 36%;
     }
 }
 
